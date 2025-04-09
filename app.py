@@ -23,8 +23,12 @@ def main():
         uploaded_file = st.file_uploader("Choisissez une image", type=["jpg", "jpeg", "png"])
 
         if uploaded_file is not None:
+            # Lire le contenu du fichier
+            file_bytes = uploaded_file.getvalue()
+            
             # Convertir le fichier en image
-            image = cv2.imdecode(np.frombuffer(uploaded_file.read(), np.uint8), cv2.IMREAD_COLOR)
+            nparr = np.frombuffer(file_bytes, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
             # Afficher l'image originale
             st.image(cv2.cvtColor(image, cv2.COLOR_BGR2RGB), caption="Image originale", use_column_width=True)
@@ -38,13 +42,13 @@ def main():
             # Ajout de configurations prédéfinies
             presets = {
                 "Par défaut": {
-                    "blur_kernel": 7,
-                    "adapt_block_size": 35,
+                    "blur_kernel": 5,
+                    "adapt_block_size": 21,
                     "adapt_c": 5,
-                    "morph_kernel": 1,
-                    "morph_iterations": 3,
-                    "min_area": 900,
-                    "margin": 17
+                    "morph_kernel": 3,
+                    "morph_iterations": 1,
+                    "min_area": 50,
+                    "margin": 10
                 },
                 "Grands insectes": {
                     "blur_kernel": 7,
@@ -81,21 +85,27 @@ def main():
                 index=0
             )
             
-            # Paramètres par défaut
-            blur_kernel = 7
-            adapt_block_size = 35
+            # Initialisation des paramètres par défaut
+            blur_kernel = 5
+            adapt_block_size = 21
             adapt_c = 5
-            morph_kernel = 1
-            morph_iterations = 3
-            min_area = 900
-            margin = 17
+            morph_kernel = 3
+            morph_iterations = 1
+            min_area = 50
+            margin = 10
+            auto_adjust = False
             
             # Utiliser les valeurs des presets ou permettre l'ajustement manuel
             if preset_choice == "Auto-ajustement":
                 st.sidebar.info(f"Les paramètres seront ajustés automatiquement pour détecter {expected_insects} insectes.")
-                
-                # On utilise les paramètres par défaut initialement
                 auto_adjust = True
+                
+                # Permettre d'ajuster certains paramètres de base même en mode auto-ajustement
+                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 5, step=2)
+                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 21, step=2)
+                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 3, step=2)
+                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 1)
+                
             elif preset_choice != "Personnalisé":
                 preset = presets[preset_choice]
                 blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, preset["blur_kernel"], step=2)
@@ -105,7 +115,6 @@ def main():
                 morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, preset["morph_iterations"])
                 min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, preset["min_area"])
                 margin = st.sidebar.slider("Marge autour des insectes", 0, 50, preset["margin"])
-                auto_adjust = False
             else:
                 # Paramètres complètement personnalisables
                 blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 5, step=2)
@@ -115,7 +124,6 @@ def main():
                 morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 1)
                 min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, 50)
                 margin = st.sidebar.slider("Marge autour des insectes", 0, 50, 10)
-                auto_adjust = False
 
             # Ajouter un filtre de circularité
             use_circularity = st.sidebar.checkbox("Filtrer par circularité", value=False)
@@ -124,39 +132,41 @@ def main():
 
             # Traitement de l'image
             with st.spinner("Traitement de l'image en cours..."):
-                # Auto-ajustement des paramètres
-                if preset_choice == "Auto-ajustement":
+                # Convertir l'image en niveaux de gris
+                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                
+                # Appliquer un flou gaussien
+                if blur_kernel > 1:
+                    blurred = cv2.GaussianBlur(gray, (blur_kernel, blur_kernel), 0)
+                else:
+                    blurred = gray
+                
+                # Si auto-ajustement est activé
+                if auto_adjust:
                     # Plages de paramètres à explorer
-                    param_grid = {
-                        "adapt_c": [-5, 0, 5, 10, 15],
-                        "min_area": [30, 50, 100, 150, 200]
-                    }
+                    adapt_c_values = [-5, 0, 2, 5, 8, 10, 15]
+                    min_area_values = [20, 30, 50, 75, 100, 150, 200, 300]
                     
                     st.info("Recherche des meilleurs paramètres en cours...")
                     
-                    # Initialiser les variables pour suivre la meilleure détection
-                    best_params = {"adapt_c": 5, "min_area": 50}
-                    best_diff = float('inf')
-                    best_num_detected = 0
-                    best_props = []
-                    
-                    # Convertir l'image en niveaux de gris
-                    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-                    
-                    # Appliquer un flou gaussien
-                    blurred = cv2.GaussianBlur(gray, (blur_kernel, blur_kernel), 0)
-                    
+                    # Créer un tableau de progression
+                    total_iterations = len(adapt_c_values) * len(min_area_values)
                     progress_bar = st.progress(0)
-                    total_combinations = len(param_grid["adapt_c"]) * len(param_grid["min_area"])
-                    current_combination = 0
+                    iteration_counter = 0
                     
-                    # Parcourir la grille de paramètres
-                    for ac in param_grid["adapt_c"]:
-                        for ma in param_grid["min_area"]:
-                            current_combination += 1
-                            progress_bar.progress(current_combination / total_combinations)
+                    # Variables pour stocker les meilleurs paramètres
+                    best_params = {"adapt_c": 5, "min_area": 50}
+                    best_count_diff = float('inf')
+                    best_filtered_props = []
+                    
+                    # Tester toutes les combinaisons de paramètres
+                    for ac in adapt_c_values:
+                        for ma in min_area_values:
+                            # Mettre à jour la barre de progression
+                            iteration_counter += 1
+                            progress_bar.progress(iteration_counter / total_iterations)
                             
-                            # Seuillage adaptatif
+                            # Appliquer le seuillage avec les paramètres actuels
                             thresh = cv2.adaptiveThreshold(
                                 blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                 cv2.THRESH_BINARY_INV, adapt_block_size, ac
@@ -176,45 +186,40 @@ def main():
                             props = measure.regionprops(labels)
                             
                             # Filtrer les petites régions
-                            filtered_props = [prop for prop in props if prop.area >= ma]
+                            current_filtered_props = [prop for prop in props if prop.area >= ma]
                             
-                            # Vérifier si ce paramétrage donne un nombre plus proche du nombre attendu
-                            diff = abs(len(filtered_props) - expected_insects)
+                            # Calculer la différence avec le nombre attendu
+                            count_diff = abs(len(current_filtered_props) - expected_insects)
                             
-                            if diff < best_diff:
-                                best_diff = diff
+                            # Si cette combinaison donne un résultat plus proche du nombre attendu
+                            if count_diff < best_count_diff:
+                                best_count_diff = count_diff
                                 best_params["adapt_c"] = ac
                                 best_params["min_area"] = ma
-                                best_num_detected = len(filtered_props)
-                                best_props = filtered_props
+                                best_filtered_props = current_filtered_props
                     
                     # Utiliser les meilleurs paramètres trouvés
                     adapt_c = best_params["adapt_c"]
                     min_area = best_params["min_area"]
                     
-                    st.success(f"Paramètres optimaux trouvés: adapt_c={adapt_c}, min_area={min_area}")
-                    st.info(f"Nombre d'insectes attendus: {expected_insects}, détectés: {best_num_detected}")
-                    
-                    # Re-traiter l'image avec les meilleurs paramètres pour affichage
+                    # Recalculer une dernière fois avec les meilleurs paramètres
                     thresh = cv2.adaptiveThreshold(
                         blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                         cv2.THRESH_BINARY_INV, adapt_block_size, adapt_c
                     )
+                    kernel = np.ones((morph_kernel, morph_kernel), np.uint8)
                     opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
                     cleared = clear_border(opening)
                     labels = measure.label(cleared)
-                    filtered_props = best_props
+                    
+                    # Afficher les paramètres optimaux trouvés
+                    st.success(f"Paramètres optimaux trouvés: adapt_c={adapt_c}, min_area={min_area}")
+                    
+                    # Utiliser les propriétés filtrées optimales
+                    filtered_props = best_filtered_props
+                    
                 else:
-                    # Traitement normal avec les paramètres choisis
-                    # Convertir l'image en niveaux de gris
-                    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-                    # Appliquer un flou gaussien
-                    if blur_kernel > 1:
-                        blurred = cv2.GaussianBlur(gray, (blur_kernel, blur_kernel), 0)
-                    else:
-                        blurred = gray
-
+                    # Traitement standard avec les paramètres choisis
                     # Seuillage adaptatif
                     thresh = cv2.adaptiveThreshold(
                         blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
@@ -287,8 +292,10 @@ def main():
                 else:
                     st.error(f"❌ {len(filtered_props)} insectes détectés (écart important de {diff} par rapport au nombre attendu)")
                     
-                    if not auto_adjust and preset_choice != "Auto-ajustement":
+                    # Suggérer l'auto-ajustement si on n'est pas déjà en mode auto
+                    if not auto_adjust:
                         if st.button("Essayer l'auto-ajustement"):
+                            st.session_state['auto_adjust'] = True
                             st.session_state['preset_choice'] = "Auto-ajustement"
                             st.experimental_rerun()
 
@@ -488,19 +495,6 @@ def main():
         st.table(table_data)
         
         st.info("Astuce: Pour les cas difficiles, essayez de prétraiter vos images pour améliorer le contraste entre les insectes et le fond avant de les charger dans l'application.")
-
-# Instructions d'utilisation initiales pour les utilisateurs qui n'ont pas encore chargé d'image
-def show_initial_instructions():
-    st.info("📋 Instructions de base:")
-    st.write("""
-    1. Téléchargez une image contenant des insectes sur fond clair
-    2. Indiquez le nombre d'insectes que vous savez présents dans l'image
-    3. Sélectionnez une configuration prédéfinie ou utilisez l'auto-ajustement
-    4. Visualisez les résultats en temps réel
-    5. Extrayez et téléchargez les insectes isolés lorsque vous êtes satisfait des résultats
-    
-    Consultez l'onglet "Guide d'utilisation" pour des conseils détaillés sur l'optimisation des paramètres.
-    """)
 
 if __name__ == "__main__":
     main()
