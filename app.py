@@ -32,6 +32,9 @@ def main():
             # Paramètres ajustables
             st.sidebar.header("Paramètres de détection")
             
+            # Demander le nombre attendu d'insectes
+            expected_insects = st.sidebar.number_input("Nombre d'insectes attendus", min_value=1, value=5, step=1)
+            
             # Ajout de configurations prédéfinies
             presets = {
                 "Par défaut": {
@@ -74,97 +77,176 @@ def main():
             
             preset_choice = st.sidebar.selectbox(
                 "Configurations prédéfinies", 
-                ["Personnalisé"] + list(presets.keys()),
+                ["Personnalisé", "Auto-ajustement"] + list(presets.keys()),
                 index=0
             )
             
+            # Paramètres par défaut
+            blur_kernel = 5
+            adapt_block_size = 21
+            adapt_c = 5
+            morph_kernel = 3
+            morph_iterations = 1
+            min_area = 50
+            margin = 10
+            
             # Utiliser les valeurs des presets ou permettre l'ajustement manuel
-            if preset_choice != "Personnalisé":
-                preset = presets[preset_choice]
+            if preset_choice == "Auto-ajustement":
+                st.sidebar.info(f"Les paramètres seront ajustés automatiquement pour détecter {expected_insects} insectes.")
                 
-                # Afficher les valeurs du preset avec possibilité de les modifier
-                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, preset["blur_kernel"], step=2,
-                                               help="Valeurs faibles = détails préservés, valeurs élevées = plus de flou")
-                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, preset["adapt_block_size"], step=2,
-                                                   help="Doit être plus grand que les insectes pour un bon seuillage")
-                adapt_c = st.sidebar.slider("Constante de seuillage adaptatif", -10, 30, preset["adapt_c"],
-                                          help="Valeurs élevées = moins d'objets détectés, valeurs faibles = plus sensible")
-                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, preset["morph_kernel"], step=2,
-                                               help="Affecte le lissage des contours et la fusion des parties")
-                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, preset["morph_iterations"],
-                                                  help="Plus d'itérations = plus de lissage et fusion")
-                min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, preset["min_area"],
-                                          help="Filtre les petits objets, augmenter pour éliminer le bruit")
-                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, preset["margin"],
-                                        help="Espace supplémentaire autour de l'insecte lors de l'extraction")
+                # On utilise les paramètres par défaut initialement
+                auto_adjust = True
+            elif preset_choice != "Personnalisé":
+                preset = presets[preset_choice]
+                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, preset["blur_kernel"], step=2)
+                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, preset["adapt_block_size"], step=2)
+                adapt_c = st.sidebar.slider("Constante de seuillage adaptatif", -10, 30, preset["adapt_c"])
+                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, preset["morph_kernel"], step=2)
+                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, preset["morph_iterations"])
+                min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, preset["min_area"])
+                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, preset["margin"])
+                auto_adjust = False
             else:
                 # Paramètres complètement personnalisables
-                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 5, step=2,
-                                               help="Valeurs faibles = détails préservés, valeurs élevées = plus de flou")
-                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 21, step=2,
-                                                   help="Doit être plus grand que les insectes pour un bon seuillage")
-                adapt_c = st.sidebar.slider("Constante de seuillage adaptatif", -10, 30, 5,
-                                          help="Valeurs élevées = moins d'objets détectés, valeurs faibles = plus sensible")
-                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 3, step=2,
-                                               help="Affecte le lissage des contours et la fusion des parties")
-                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 1,
-                                                  help="Plus d'itérations = plus de lissage et fusion")
-                min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, 50,
-                                          help="Filtre les petits objets, augmenter pour éliminer le bruit")
-                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, 10,
-                                        help="Espace supplémentaire autour de l'insecte lors de l'extraction")
+                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 5, step=2)
+                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 21, step=2)
+                adapt_c = st.sidebar.slider("Constante de seuillage adaptatif", -10, 30, 5)
+                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 3, step=2)
+                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 1)
+                min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, 50)
+                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, 10)
+                auto_adjust = False
 
             # Ajouter un filtre de circularité
-            use_circularity = st.sidebar.checkbox("Filtrer par circularité", value=False,
-                                                help="Aide à distinguer les insectes des artefacts non-circulaires")
+            use_circularity = st.sidebar.checkbox("Filtrer par circularité", value=False)
             if use_circularity:
-                min_circularity = st.sidebar.slider("Circularité minimale", 0.0, 1.0, 0.3,
-                                                 help="0 = forme très irrégulière, 1 = cercle parfait")
+                min_circularity = st.sidebar.slider("Circularité minimale", 0.0, 1.0, 0.3)
 
             # Traitement de l'image
             with st.spinner("Traitement de l'image en cours..."):
-                # Convertir l'image en niveaux de gris
-                gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-                # Appliquer un flou gaussien
-                if blur_kernel > 1:
+                # Auto-ajustement des paramètres
+                if preset_choice == "Auto-ajustement":
+                    # Plages de paramètres à explorer
+                    param_grid = {
+                        "adapt_c": [-5, 0, 5, 10, 15],
+                        "min_area": [30, 50, 100, 150, 200]
+                    }
+                    
+                    st.info("Recherche des meilleurs paramètres en cours...")
+                    
+                    # Initialiser les variables pour suivre la meilleure détection
+                    best_params = {"adapt_c": 5, "min_area": 50}
+                    best_diff = float('inf')
+                    best_num_detected = 0
+                    best_props = []
+                    
+                    # Convertir l'image en niveaux de gris
+                    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+                    
+                    # Appliquer un flou gaussien
                     blurred = cv2.GaussianBlur(gray, (blur_kernel, blur_kernel), 0)
+                    
+                    progress_bar = st.progress(0)
+                    total_combinations = len(param_grid["adapt_c"]) * len(param_grid["min_area"])
+                    current_combination = 0
+                    
+                    # Parcourir la grille de paramètres
+                    for ac in param_grid["adapt_c"]:
+                        for ma in param_grid["min_area"]:
+                            current_combination += 1
+                            progress_bar.progress(current_combination / total_combinations)
+                            
+                            # Seuillage adaptatif
+                            thresh = cv2.adaptiveThreshold(
+                                blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                cv2.THRESH_BINARY_INV, adapt_block_size, ac
+                            )
+                            
+                            # Opérations morphologiques
+                            kernel = np.ones((morph_kernel, morph_kernel), np.uint8)
+                            opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
+                            
+                            # Supprimer les objets qui touchent les bords
+                            cleared = clear_border(opening)
+                            
+                            # Étiqueter les composants connectés
+                            labels = measure.label(cleared)
+                            
+                            # Obtenir les propriétés des régions
+                            props = measure.regionprops(labels)
+                            
+                            # Filtrer les petites régions
+                            filtered_props = [prop for prop in props if prop.area >= ma]
+                            
+                            # Vérifier si ce paramétrage donne un nombre plus proche du nombre attendu
+                            diff = abs(len(filtered_props) - expected_insects)
+                            
+                            if diff < best_diff:
+                                best_diff = diff
+                                best_params["adapt_c"] = ac
+                                best_params["min_area"] = ma
+                                best_num_detected = len(filtered_props)
+                                best_props = filtered_props
+                    
+                    # Utiliser les meilleurs paramètres trouvés
+                    adapt_c = best_params["adapt_c"]
+                    min_area = best_params["min_area"]
+                    
+                    st.success(f"Paramètres optimaux trouvés: adapt_c={adapt_c}, min_area={min_area}")
+                    st.info(f"Nombre d'insectes attendus: {expected_insects}, détectés: {best_num_detected}")
+                    
+                    # Re-traiter l'image avec les meilleurs paramètres pour affichage
+                    thresh = cv2.adaptiveThreshold(
+                        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                        cv2.THRESH_BINARY_INV, adapt_block_size, adapt_c
+                    )
+                    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
+                    cleared = clear_border(opening)
+                    labels = measure.label(cleared)
+                    filtered_props = best_props
                 else:
-                    blurred = gray
+                    # Traitement normal avec les paramètres choisis
+                    # Convertir l'image en niveaux de gris
+                    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-                # Seuillage adaptatif
-                thresh = cv2.adaptiveThreshold(
-                    blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                    cv2.THRESH_BINARY_INV, adapt_block_size, adapt_c
-                )
+                    # Appliquer un flou gaussien
+                    if blur_kernel > 1:
+                        blurred = cv2.GaussianBlur(gray, (blur_kernel, blur_kernel), 0)
+                    else:
+                        blurred = gray
 
-                # Opérations morphologiques
-                kernel = np.ones((morph_kernel, morph_kernel), np.uint8)
-                opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
+                    # Seuillage adaptatif
+                    thresh = cv2.adaptiveThreshold(
+                        blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                        cv2.THRESH_BINARY_INV, adapt_block_size, adapt_c
+                    )
 
-                # Supprimer les objets qui touchent les bords
-                cleared = clear_border(opening)
+                    # Opérations morphologiques
+                    kernel = np.ones((morph_kernel, morph_kernel), np.uint8)
+                    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
 
-                # Étiqueter les composants connectés
-                labels = measure.label(cleared)
+                    # Supprimer les objets qui touchent les bords
+                    cleared = clear_border(opening)
 
-                # Obtenir les propriétés des régions
-                props = measure.regionprops(labels)
+                    # Étiqueter les composants connectés
+                    labels = measure.label(cleared)
 
-                # Filtrer les petites régions et appliquer le filtre de circularité si activé
-                if use_circularity:
-                    filtered_props = []
-                    for prop in props:
-                        if prop.area >= min_area:
-                            # Calculer la circularité: 4π × aire / périmètre²
-                            # Une valeur proche de 1 indique une forme circulaire
-                            perimeter = prop.perimeter
-                            if perimeter > 0:  # Éviter division par zéro
-                                circularity = 4 * np.pi * prop.area / (perimeter * perimeter)
-                                if circularity >= min_circularity:
-                                    filtered_props.append(prop)
-                else:
-                    filtered_props = [prop for prop in props if prop.area >= min_area]
+                    # Obtenir les propriétés des régions
+                    props = measure.regionprops(labels)
+
+                    # Filtrer les petites régions et appliquer le filtre de circularité si activé
+                    if use_circularity:
+                        filtered_props = []
+                        for prop in props:
+                            if prop.area >= min_area:
+                                # Calculer la circularité: 4π × aire / périmètre²
+                                perimeter = prop.perimeter
+                                if perimeter > 0:  # Éviter division par zéro
+                                    circularity = 4 * np.pi * prop.area / (perimeter * perimeter)
+                                    if circularity >= min_circularity:
+                                        filtered_props.append(prop)
+                    else:
+                        filtered_props = [prop for prop in props if prop.area >= min_area]
 
                 # Créer une visualisation des étapes
                 col1, col2 = st.columns(2)
@@ -189,13 +271,26 @@ def main():
                 st.subheader("Statistiques de détection")
                 col1, col2, col3 = st.columns(3)
                 col1.metric("Nombre d'insectes", len(filtered_props))
+                col1.metric("Nombre attendu", expected_insects)
                 
                 if filtered_props:
                     areas = [prop.area for prop in filtered_props]
                     col2.metric("Surface moyenne (px)", f"{int(np.mean(areas))}")
                     col3.metric("Plage de tailles (px)", f"{int(min(areas))} - {int(max(areas))}")
                 
-                st.success(f"{len(filtered_props)} insectes ont été détectés!")
+                # Afficher l'écart par rapport au nombre attendu
+                diff = abs(len(filtered_props) - expected_insects)
+                if diff == 0:
+                    st.success(f"✅ Nombre exact d'insectes détectés: {len(filtered_props)}")
+                elif diff <= 2:
+                    st.warning(f"⚠️ {len(filtered_props)} insectes détectés (écart de {diff} par rapport au nombre attendu)")
+                else:
+                    st.error(f"❌ {len(filtered_props)} insectes détectés (écart important de {diff} par rapport au nombre attendu)")
+                    
+                    if not auto_adjust and preset_choice != "Auto-ajustement":
+                        if st.button("Essayer l'auto-ajustement"):
+                            st.session_state['preset_choice'] = "Auto-ajustement"
+                            st.experimental_rerun()
 
                 # Option pour extraire et télécharger les insectes
                 if st.button("Extraire et télécharger les insectes isolés"):
@@ -290,8 +385,20 @@ def main():
         - **Grands insectes**: Optimisée pour détecter des insectes de grande taille
         - **Petits insectes**: Optimisée pour les insectes de petite taille ou les détails fins
         - **Haute précision**: Réduit les fausses détections au prix d'une sensibilité légèrement plus faible
+        - **Auto-ajustement**: Ajuste automatiquement les paramètres pour détecter le nombre d'insectes spécifié
         
         Vous pouvez commencer avec l'une de ces configurations puis ajuster les paramètres selon vos besoins.
+        """)
+        
+        st.subheader("Utilisation de l'auto-ajustement")
+        st.write("""
+        La fonctionnalité d'auto-ajustement permet de spécifier le nombre d'insectes attendus dans l'image:
+        
+        1. Indiquez le nombre d'insectes que vous savez présents dans l'image
+        2. Sélectionnez le mode "Auto-ajustement" dans les configurations prédéfinies
+        3. L'application testera différentes combinaisons de paramètres pour trouver celle qui détecte au mieux le nombre souhaité
+        
+        Cette approche est particulièrement utile lorsque vous connaissez le nombre exact d'insectes dans l'image et que vous souhaitez optimiser la détection.
         """)
         
         st.subheader("Problèmes courants et solutions")
@@ -387,9 +494,10 @@ def show_initial_instructions():
     st.info("📋 Instructions de base:")
     st.write("""
     1. Téléchargez une image contenant des insectes sur fond clair
-    2. Sélectionnez une configuration prédéfinie ou ajustez les paramètres dans la barre latérale
-    3. Visualisez les résultats en temps réel
-    4. Extrayez et téléchargez les insectes isolés lorsque vous êtes satisfait des résultats
+    2. Indiquez le nombre d'insectes que vous savez présents dans l'image
+    3. Sélectionnez une configuration prédéfinie ou utilisez l'auto-ajustement
+    4. Visualisez les résultats en temps réel
+    5. Extrayez et téléchargez les insectes isolés lorsque vous êtes satisfait des résultats
     
     Consultez l'onglet "Guide d'utilisation" pour des conseils détaillés sur l'optimisation des paramètres.
     """)
