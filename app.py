@@ -82,13 +82,13 @@ def main():
             )
             
             # Paramètres par défaut
-            blur_kernel = 5
-            adapt_block_size = 21
+            blur_kernel = 7
+            adapt_block_size = 35
             adapt_c = 5
-            morph_kernel = 3
-            morph_iterations = 1
-            min_area = 50
-            margin = 10
+            morph_kernel = 1
+            morph_iterations = 3
+            min_area = 900
+            margin = 17
             
             # Utiliser les valeurs des presets ou permettre l'ajustement manuel
             if preset_choice == "Auto-ajustement":
