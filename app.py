@@ -1,6 +1,3 @@
-# Installer les bibliothèques nécessaires
-!pip install streamlit opencv-python matplotlib scikit-image pillow pyngrok
-
 # Importer le module streamlit pour vérifier qu'il est bien installé
 import streamlit
 
