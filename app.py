@@ -200,13 +200,3 @@ def main():
 if __name__ == "__main__":
     main()
 
-# Lancer Streamlit avec ngrok
-from pyngrok import ngrok
-import subprocess
-
-# Démarrer Streamlit en arrière-plan
-!streamlit run app.py &>/dev/null&
-
-# Créer un tunnel avec ngrok
-public_url = ngrok.connect(8501)
-print(f"L'application Streamlit est accessible à l'adresse: {public_url}")
