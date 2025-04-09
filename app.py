@@ -42,13 +42,13 @@ def main():
             # Ajout de configurations prédéfinies
             presets = {
                 "Par défaut": {
-                    "blur_kernel": 5,
-                    "adapt_block_size": 21,
+                    "blur_kernel": 7,
+                    "adapt_block_size": 35,
                     "adapt_c": 5,
-                    "morph_kernel": 3,
-                    "morph_iterations": 1,
-                    "min_area": 50,
-                    "margin": 10
+                    "morph_kernel": 1,
+                    "morph_iterations": 3,
+                    "min_area": 1000,  # Valeur maximale comme demandé
+                    "margin": 17
                 },
                 "Grands insectes": {
                     "blur_kernel": 7,
@@ -82,17 +82,17 @@ def main():
             preset_choice = st.sidebar.selectbox(
                 "Configurations prédéfinies", 
                 ["Personnalisé", "Auto-ajustement"] + list(presets.keys()),
-                index=0
+                index=2  # "Par défaut" sélectionné par défaut (index 2 après "Personnalisé" et "Auto-ajustement")
             )
             
-            # Initialisation des paramètres par défaut
-            blur_kernel = 5
-            adapt_block_size = 21
+            # Initialisation des paramètres par défaut avec vos nouvelles valeurs optimales
+            blur_kernel = 7
+            adapt_block_size = 35
             adapt_c = 5
-            morph_kernel = 3
-            morph_iterations = 1
-            min_area = 50
-            margin = 10
+            morph_kernel = 1
+            morph_iterations = 3
+            min_area = 1000  # Valeur maximale comme demandé
+            margin = 17
             auto_adjust = False
             
             # Utiliser les valeurs des presets ou permettre l'ajustement manuel
@@ -101,10 +101,10 @@ def main():
                 auto_adjust = True
                 
                 # Permettre d'ajuster certains paramètres de base même en mode auto-ajustement
-                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 5, step=2)
-                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 21, step=2)
-                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 3, step=2)
-                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 1)
+                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 7, step=2)
+                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 35, step=2)
+                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 1, step=2)
+                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 3)
                 
             elif preset_choice != "Personnalisé":
                 preset = presets[preset_choice]
@@ -116,14 +116,14 @@ def main():
                 min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, preset["min_area"])
                 margin = st.sidebar.slider("Marge autour des insectes", 0, 50, preset["margin"])
             else:
-                # Paramètres complètement personnalisables
-                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 5, step=2)
-                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 21, step=2)
+                # Paramètres complètement personnalisables - initialisés avec vos valeurs optimales
+                blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 7, step=2)
+                adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 35, step=2)
                 adapt_c = st.sidebar.slider("Constante de seuillage adaptatif", -10, 30, 5)
-                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 3, step=2)
-                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 1)
-                min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, 50)
-                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, 10)
+                morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 1, step=2)
+                morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 3)
+                min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, 1000)
+                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, 17)
 
             # Ajouter un filtre de circularité
             use_circularity = st.sidebar.checkbox("Filtrer par circularité", value=False)
@@ -388,7 +388,7 @@ def main():
         st.subheader("Configurations prédéfinies")
         st.write("""
         L'application propose plusieurs configurations prédéfinies pour différents types d'images:
-        - **Par défaut**: Configuration équilibrée adaptée à la plupart des cas
+        - **Par défaut**: Configuration optimisée basée sur les tests (flou gaussien: 7, bloc adaptatif: 35, seuillage: 5, noyau morphologique: 1, itérations: 3, surface min: 1000, marge: 17)
         - **Grands insectes**: Optimisée pour détecter des insectes de grande taille
         - **Petits insectes**: Optimisée pour les insectes de petite taille ou les détails fins
         - **Haute précision**: Réduit les fausses détections au prix d'une sensibilité légèrement plus faible
