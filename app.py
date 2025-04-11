@@ -309,40 +309,60 @@ def main():
                     with zipfile.ZipFile(zip_path, 'w') as zipf:
                         # Pour chaque insecte détecté
                         for i, prop in enumerate(filtered_props):
-                            # Obtenir les coordonnées de la boîte englobante
+                            # Obtenir les coordonnées de la boîte englobante avec marge
                             minr, minc, maxr, maxc = prop.bbox
-
+                            
                             # Ajouter une marge
                             minr = max(0, minr - margin)
                             minc = max(0, minc - margin)
                             maxr = min(image.shape[0], maxr + margin)
                             maxc = min(image.shape[1], maxc + margin)
-
+                    
                             # Extraire l'insecte avec sa boîte englobante
-                            insect_roi = image[minr:maxr, minc:maxc]
-
-                            # Créer un masque pour isoler l'insecte du fond
+                            insect_roi = image[minr:maxr, minc:maxc].copy()
+                            
+                            # Créer un masque initial basé sur les coordonnées détectées
                             mask = np.zeros_like(gray)
                             for coords in prop.coords:
                                 mask[coords[0], coords[1]] = 255
-
-                            # Extraire le masque pour cet insecte spécifique
-                            insect_mask = mask[minr:maxr, minc:maxc]
-
-                            # Créer une image avec fond blanc
+                            
+                            # Extraire le masque pour cette ROI
+                            roi_mask = mask[minr:maxr, minc:maxc]
+                            
+                            # Préparer le masque pour GrabCut
+                            # 0 = fond certain, 1 = fond probable, 2 = objet probable, 3 = objet certain
+                            grabcut_mask = np.zeros(roi_mask.shape, dtype=np.uint8)
+                            grabcut_mask[roi_mask > 0] = 3  # Marquer l'insecte détecté comme objet certain
+                            
+                            # Créer un rectangle légèrement plus petit que la ROI pour indiquer la zone d'intérêt
+                            rect_margin = max(2, margin // 3)
+                            rect = (rect_margin, rect_margin, 
+                                    roi_mask.shape[1] - 2*rect_margin, 
+                                    roi_mask.shape[0] - 2*rect_margin)
+                            
+                            # Appliquer GrabCut pour affiner la segmentation
+                            bgd_model = np.zeros((1, 65), np.float64)
+                            fgd_model = np.zeros((1, 65), np.float64)
+                            
+                            # Lancer GrabCut avec le masque initial comme guide
+                            cv2.grabCut(insect_roi, grabcut_mask, rect, bgd_model, fgd_model, 5, cv2.GC_INIT_WITH_MASK)
+                            
+                            # Créer le masque final: 0 et 2 sont le fond, 1 et 3 sont l'objet
+                            refined_mask = np.where((grabcut_mask==2) | (grabcut_mask==0), 0, 1).astype('uint8')
+                            
+                            # Convertir en masque 3 canaux
+                            refined_mask_3ch = cv2.cvtColor(refined_mask * 255, cv2.COLOR_GRAY2BGR)
+                            
+                            # Créer un fond blanc
                             white_bg = np.ones_like(insect_roi) * 255
-
-                            # Créer un masque binaire de l'insecte
-                            _, binary_mask = cv2.threshold(insect_mask, 127, 255, cv2.THRESH_BINARY)
-                            binary_mask = cv2.cvtColor(binary_mask, cv2.COLOR_GRAY2BGR)
-
-                            # Utiliser le masque pour combiner l'insecte avec le fond blanc
-                            insect_on_white = np.where(binary_mask == 255, insect_roi, white_bg)
-
-                            # Sauvegarder l'image temporairement
+                            
+                            # Combiner l'insecte et le fond blanc selon le masque
+                            insect_on_white = np.where(refined_mask_3ch > 0, insect_roi, white_bg)
+                            
+                            # Sauvegarder l'image
                             temp_img_path = os.path.join(temp_dir, f"insect_{i+1}.png")
                             cv2.imwrite(temp_img_path, insect_on_white)
-
+                            
                             # Ajouter au zip
                             zipf.write(temp_img_path, f"insect_{i+1}.png")
 
@@ -357,7 +377,7 @@ def main():
                     if filtered_props:
                         st.write("Aperçu des premiers insectes isolés:")
                         preview_cols = st.columns(min(5, len(filtered_props)))
-
+                    
                         for i, col in enumerate(preview_cols):
                             if i < len(filtered_props):
                                 prop = filtered_props[i]
@@ -366,17 +386,36 @@ def main():
                                 minc = max(0, minc - margin)
                                 maxr = min(image.shape[0], maxr + margin)
                                 maxc = min(image.shape[1], maxc + margin)
-
-                                insect_roi = image[minr:maxr, minc:maxc]
+                    
+                                # Extraire l'insecte avec sa boîte englobante
+                                insect_roi = image[minr:maxr, minc:maxc].copy()
+                                
+                                # Créer un masque pour isoler l'insecte du fond
                                 mask = np.zeros_like(gray)
                                 for coords in prop.coords:
                                     mask[coords[0], coords[1]] = 255
+                                    
+                                # Extraire le masque pour cet insecte spécifique
                                 insect_mask = mask[minr:maxr, minc:maxc]
+                                
+                                # Assurer que le masque a la bonne forme (convertir en 3 canaux si nécessaire)
+                                if len(insect_mask.shape) == 2:
+                                    insect_mask = cv2.cvtColor(insect_mask, cv2.COLOR_GRAY2BGR)
+                                
+                                # Créer une version dilatée du masque pour adoucir les bords
+                                kernel = np.ones((3, 3), np.uint8)
+                                dilated_mask = cv2.dilate(insect_mask, kernel, iterations=2)
+                                
+                                # Créer un fond blanc
                                 white_bg = np.ones_like(insect_roi) * 255
-                                _, binary_mask = cv2.threshold(insect_mask, 127, 255, cv2.THRESH_BINARY)
-                                binary_mask = cv2.cvtColor(binary_mask, cv2.COLOR_GRAY2BGR)
-                                insect_on_white = np.where(binary_mask == 255, insect_roi, white_bg)
-
+                                
+                                # Convertir le masque en valeurs flottantes entre 0 et 1
+                                alpha_mask = dilated_mask.astype(float) / 255
+                                
+                                # Appliquer le masque alpha pour une transition plus douce
+                                insect_on_white = insect_roi * alpha_mask + white_bg * (1 - alpha_mask)
+                                insect_on_white = insect_on_white.astype(np.uint8)
+                    
                                 col.image(cv2.cvtColor(insect_on_white, cv2.COLOR_BGR2RGB), caption=f"Insecte {i+1}", use_column_width=True)
         else:
             st.info("Veuillez télécharger une image pour commencer.")
