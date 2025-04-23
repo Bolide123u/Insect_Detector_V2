@@ -77,15 +77,6 @@ def main():
                     "min_area": 150,
                     "margin": 10
                 }
-                "Arthropodes à pattes fines": {
-                    "blur_kernel": 3,
-                    "adapt_block_size": 21,
-                    "adapt_c": 3,
-                    "morph_kernel": 3,
-                    "morph_iterations": 2,
-                    "min_area": 150,
-                    "margin": 20
-                }
             }
             
             preset_choice = st.sidebar.selectbox(
@@ -235,14 +226,9 @@ def main():
                         cv2.THRESH_BINARY_INV, adapt_block_size, adapt_c
                     )
 
-                    # Étape de dilatation préliminaire pour connecter les structures fines
-                    connect_kernel = np.ones((5, 5), np.uint8)
-                    dilated_thresh = cv2.dilate(thresh, connect_kernel, iterations=2)
-                    
+                    # Opérations morphologiques
                     kernel = np.ones((morph_kernel, morph_kernel), np.uint8)
-                    closing = cv2.morphologyEx(dilated_thresh, cv2.MORPH_CLOSE, kernel, iterations=morph_iterations)
-                    
-                    opening = cv2.morphologyEx(closing, cv2.MORPH_OPEN, kernel, iterations=1)
+                    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=morph_iterations)
 
                     # Supprimer les objets qui touchent les bords
                     cleared = clear_border(opening)
