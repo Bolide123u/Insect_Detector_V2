@@ -320,62 +320,75 @@ def main():
                 
                             # Extraire l'insecte avec sa boîte englobante depuis l'image originale
                             insect_roi = image[minr:maxr, minc:maxc].copy()
+                            roi_height, roi_width = insect_roi.shape[:2]
                             
-                            # Créer un masque pour l'insecte
-                            mask = np.zeros((maxr - minr, maxc - minc), dtype=np.uint8)
+                            # Créer un masque initial pour l'insecte
+                            mask = np.zeros((roi_height, roi_width), dtype=np.uint8)
                             
-                            # Coordonnées des points dans la région de l'insecte, ajustées pour la ROI
-                            roi_coords = []
+                            # 1. Marquer les pixels de l'insecte dans le masque
                             for coord in prop.coords:
                                 if minr <= coord[0] < maxr and minc <= coord[1] < maxc:
-                                    # Ajuster les coordonnées relatives à la ROI
-                                    roi_coords.append((coord[0] - minr, coord[1] - minc))
+                                    mask[coord[0] - minr, coord[1] - minc] = 255
                             
-                            # Dessiner les points de l'insecte sur le masque
-                            for y, x in roi_coords:
-                                mask[y, x] = 255
+                            # 2. Appliquer une fermeture morphologique large pour connecter les régions 
+                            kernel_close = np.ones((7, 7), np.uint8)
+                            mask_closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=5)
                             
-                            # Trouver les contours externes de l'insecte pour remplir les trous
-                            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                            # 3. Trouver TOUS les contours (pas seulement les externes)
+                            contours, _ = cv2.findContours(mask_closed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                             
-                            # Créer un nouveau masque rempli
+                            # 4. Créer un masque pour le dessin des contours remplis
                             filled_mask = np.zeros_like(mask)
                             
-                            # Remplir les contours externes
+                            # 5. Dessiner tous les contours trouvés avec remplissage
                             for contour in contours:
-                                cv2.drawContours(filled_mask, [contour], -1, 255, thickness=cv2.FILLED)
+                                if cv2.contourArea(contour) > 20:  # Ignorer les très petits contours (bruit)
+                                    cv2.drawContours(filled_mask, [contour], -1, 255, thickness=cv2.FILLED)
                             
-                            # Option supplémentaire: remplir les petits trous restants avec une fermeture morphologique
-                            kernel_close = np.ones((5, 5), np.uint8)
-                            filled_mask = cv2.morphologyEx(filled_mask, cv2.MORPH_CLOSE, kernel_close, iterations=3)
+                            # 6. Appliquer une dilatation pour connecter les parties proches
+                            kernel_dilate = np.ones((5, 5), np.uint8)
+                            dilated_mask = cv2.dilate(filled_mask, kernel_dilate, iterations=3)
                             
-                            # Dilater légèrement le masque pour éviter les bords durs
-                            kernel = np.ones((3, 3), np.uint8)
-                            mask_dilated = cv2.dilate(filled_mask, kernel, iterations=2)
+                            # 7. Appliquer une nouvelle fermeture morphologique pour combler les trous restants
+                            final_mask = cv2.morphologyEx(dilated_mask, cv2.MORPH_CLOSE, kernel_close, iterations=4)
                             
-                            # Convertir le masque en 3 canaux pour l'appliquer à l'image couleur
-                            mask_3ch = cv2.cvtColor(mask_dilated, cv2.COLOR_GRAY2BGR)
+                            # 8. Pour les grands trous qui persistent, utiliser un remplissage par inondation
+                            # Créer une copie du masque avec une bordure
+                            mask_with_border = cv2.copyMakeBorder(final_mask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
                             
-                            # Créer une image avec fond blanc
+                            # Créer un masque pour le floodfill
+                            flood_mask = np.zeros((roi_height+4, roi_width+4), dtype=np.uint8)
+                            
+                            # Remplir depuis les bords pour marquer tout l'extérieur
+                            cv2.floodFill(mask_with_border, flood_mask, (0, 0), 128)
+                            
+                            # Inverser: tout ce qui n'a pas été atteint est à l'intérieur d'un trou
+                            holes = np.where((mask_with_border != 128) & (mask_with_border != 255), 255, 0).astype(np.uint8)
+                            holes = holes[1:-1, 1:-1]  # Enlever la bordure
+                            
+                            # Ajouter les trous identifiés au masque final
+                            complete_mask = cv2.bitwise_or(final_mask, holes)
+                            
+                            # Traitement final - dilater légèrement pour lisser les bords
+                            kernel_smooth = np.ones((3, 3), np.uint8)
+                            smooth_mask = cv2.dilate(complete_mask, kernel_smooth, iterations=1)
+                            
+                            # Convertir en masque 3 canaux pour l'appliquer à l'image couleur
+                            mask_3ch = cv2.cvtColor(smooth_mask, cv2.COLOR_GRAY2BGR)
+                            
+                            # Créer l'image avec fond blanc
                             white_bg = np.ones_like(insect_roi) * 255
-                            
-                            # Combiner l'insecte avec le fond blanc en utilisant le masque
                             insect_on_white = np.where(mask_3ch == 255, insect_roi, white_bg)
                             
-                            # Créer une image RGBA (avec canal alpha pour la transparence)
-                            height, width = insect_roi.shape[:2]
-                            insect_transparent = np.zeros((height, width, 4), dtype=np.uint8)
-                            # Copier les 3 canaux BGR
+                            # Créer une image avec transparence
+                            insect_transparent = np.zeros((roi_height, roi_width, 4), dtype=np.uint8)
                             insect_transparent[:, :, :3] = insect_roi
-                            # Utiliser le masque comme canal alpha (0 = transparent, 255 = opaque)
-                            insect_transparent[:, :, 3] = mask_dilated
+                            insect_transparent[:, :, 3] = smooth_mask
                             
                             # Sauvegarder les deux versions
-                            # Version sur fond blanc (JPG)
                             temp_img_path_white = os.path.join(temp_dir, f"insect_{i+1}_white.jpg")
                             cv2.imwrite(temp_img_path_white, insect_on_white)
                             
-                            # Version avec transparence (PNG)
                             temp_img_path_transparent = os.path.join(temp_dir, f"insect_{i+1}_transparent.png")
                             cv2.imwrite(temp_img_path_transparent, insect_transparent)
                             
@@ -405,34 +418,41 @@ def main():
                                 maxc = min(image.shape[1], maxc + margin)
                 
                                 insect_roi = image[minr:maxr, minc:maxc].copy()
-                                mask = np.zeros((maxr - minr, maxc - minc), dtype=np.uint8)
+                                roi_height, roi_width = insect_roi.shape[:2]
                                 
-                                # Coordonnées des points de l'insecte
-                                roi_coords = []
+                                # Répéter le même traitement de masque que ci-dessus
+                                mask = np.zeros((roi_height, roi_width), dtype=np.uint8)
+                                
                                 for coord in prop.coords:
                                     if minr <= coord[0] < maxr and minc <= coord[1] < maxc:
-                                        roi_coords.append((coord[0] - minr, coord[1] - minc))
+                                        mask[coord[0] - minr, coord[1] - minc] = 255
                                 
-                                # Dessiner les points sur le masque
-                                for y, x in roi_coords:
-                                    mask[y, x] = 255
+                                kernel_close = np.ones((7, 7), np.uint8)
+                                mask_closed = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_close, iterations=5)
                                 
-                                # Trouver et remplir les contours
-                                contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                                contours, _ = cv2.findContours(mask_closed, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
                                 filled_mask = np.zeros_like(mask)
+                                
                                 for contour in contours:
-                                    cv2.drawContours(filled_mask, [contour], -1, 255, thickness=cv2.FILLED)
+                                    if cv2.contourArea(contour) > 20:
+                                        cv2.drawContours(filled_mask, [contour], -1, 255, thickness=cv2.FILLED)
                                 
-                                # Fermeture morphologique pour éliminer les petits trous
-                                kernel_close = np.ones((5, 5), np.uint8)
-                                filled_mask = cv2.morphologyEx(filled_mask, cv2.MORPH_CLOSE, kernel_close, iterations=3)
+                                kernel_dilate = np.ones((5, 5), np.uint8)
+                                dilated_mask = cv2.dilate(filled_mask, kernel_dilate, iterations=3)
+                                final_mask = cv2.morphologyEx(dilated_mask, cv2.MORPH_CLOSE, kernel_close, iterations=4)
                                 
-                                # Dilater légèrement le masque
-                                kernel = np.ones((3, 3), np.uint8)
-                                mask_dilated = cv2.dilate(filled_mask, kernel, iterations=2)
+                                mask_with_border = cv2.copyMakeBorder(final_mask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+                                flood_mask = np.zeros((roi_height+4, roi_width+4), dtype=np.uint8)
+                                cv2.floodFill(mask_with_border, flood_mask, (0, 0), 128)
                                 
-                                # Convertir en masque 3 canaux et appliquer
-                                mask_3ch = cv2.cvtColor(mask_dilated, cv2.COLOR_GRAY2BGR)
+                                holes = np.where((mask_with_border != 128) & (mask_with_border != 255), 255, 0).astype(np.uint8)
+                                holes = holes[1:-1, 1:-1]
+                                complete_mask = cv2.bitwise_or(final_mask, holes)
+                                
+                                kernel_smooth = np.ones((3, 3), np.uint8)
+                                smooth_mask = cv2.dilate(complete_mask, kernel_smooth, iterations=1)
+                                
+                                mask_3ch = cv2.cvtColor(smooth_mask, cv2.COLOR_GRAY2BGR)
                                 white_bg = np.ones_like(insect_roi) * 255
                                 insect_on_white = np.where(mask_3ch == 255, insect_roi, white_bg)
                 
