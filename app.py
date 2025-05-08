@@ -55,10 +55,6 @@ def main():
                 "Haute précision": {
                     "blur_kernel": 5, "adapt_block_size": 25, "adapt_c": 12,
                     "morph_kernel": 5, "morph_iterations": 3, "min_area": 150, "margin": 10
-                },
-                "Arthropodes à pattes fines": {
-                    "blur_kernel": 3, "adapt_block_size": 21, "adapt_c": 3,
-                    "morph_kernel": 3, "morph_iterations": 2, "min_area": 150, "margin": 20
                 }
             }
             
