@@ -12,8 +12,8 @@ import zipfile
 import base64
 
 def main():
-    st.title("Détection et isolation d'insectes")
-    st.write("Cette application permet de détecter des insectes sur un fond clair et de les isoler individuellement.")
+    st.title("Détection et isolation d'Arthropodes")
+    st.write("Cette application permet de détecter des Arthropodes sur un fond clair et de les isoler individuellement.")
 
     # Onglets pour l'application
     tab1, tab2 = st.tabs(["Application", "Guide d'utilisation"])
@@ -37,18 +37,18 @@ def main():
             st.sidebar.header("Paramètres de détection")
             
             # Demander le nombre attendu d'insectes
-            expected_insects = st.sidebar.number_input("Nombre d'insectes attendus", min_value=1, value=5, step=1)
+            expected_insects = st.sidebar.number_input("Nombre d'Arthropodes attendus", min_value=1, value=5, step=1)
             
             presets = {
                 "Par défaut": {
                     "blur_kernel": 7, "adapt_block_size": 35, "adapt_c": 5,
                     "morph_kernel": 1, "morph_iterations": 3, "min_area": 1000, "margin": 17
                 },
-                "Grands insectes": {
+                "Grands Arthropodes": {
                     "blur_kernel": 7, "adapt_block_size": 35, "adapt_c": 8,
                     "morph_kernel": 5, "morph_iterations": 2, "min_area": 300, "margin": 15
                 },
-                "Petits insectes": {
+                "Petits Arthropodes": {
                     "blur_kernel": 3, "adapt_block_size": 15, "adapt_c": 2,
                     "morph_kernel": 3, "morph_iterations": 1, "min_area": 30, "margin": 5
                 },
@@ -68,7 +68,7 @@ def main():
             auto_adjust = False
             
             if preset_choice == "Auto-ajustement":
-                st.sidebar.info(f"Les paramètres seront ajustés automatiquement pour détecter {expected_insects} insectes.")
+                st.sidebar.info(f"Les paramètres seront ajustés automatiquement pour détecter {expected_insects} Arthropodes.")
                 auto_adjust = True
                 blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 7, step=2)
                 adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 35, step=2)
@@ -82,7 +82,7 @@ def main():
                 morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, preset["morph_kernel"], step=2)
                 morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, preset["morph_iterations"])
                 min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, preset["min_area"])
-                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, preset["margin"])
+                margin = st.sidebar.slider("Marge autour des Arthropodes", 0, 50, preset["margin"])
             else:
                 blur_kernel = st.sidebar.slider("Taille du noyau de flou gaussien", 1, 21, 7, step=2)
                 adapt_block_size = st.sidebar.slider("Taille du bloc adaptatif", 3, 51, 35, step=2)
@@ -90,7 +90,7 @@ def main():
                 morph_kernel = st.sidebar.slider("Taille du noyau morphologique", 1, 9, 1, step=2)
                 morph_iterations = st.sidebar.slider("Itérations morphologiques", 1, 5, 3)
                 min_area = st.sidebar.slider("Surface minimale (pixels)", 10, 1000, 1000)
-                margin = st.sidebar.slider("Marge autour des insectes", 0, 50, 17)
+                margin = st.sidebar.slider("Marge autour des Arthropodes", 0, 50, 17)
 
             use_circularity = st.sidebar.checkbox("Filtrer par circularité", value=False)
             if use_circularity:
@@ -177,11 +177,11 @@ def main():
                         color = np.random.randint(0, 255, size=3)
                         for coord in prop.coords:
                             label_display[coord[0], coord[1]] = color
-                    st.image(label_display, caption=f"Insectes détectés: {len(filtered_props)}", use_column_width=True)
+                    st.image(label_display, caption=f"Arthropodes détectés: {len(filtered_props)}", use_column_width=True)
 
                 st.subheader("Statistiques de détection")
                 stat_col1, stat_col2, stat_col3 = st.columns(3)
-                stat_col1.metric("Nombre d'insectes", len(filtered_props))
+                stat_col1.metric("Nombre d'Arthropodes", len(filtered_props))
                 stat_col1.metric("Nombre attendu", expected_insects)
                 if filtered_props:
                     areas = [prop.area for prop in filtered_props]
@@ -189,18 +189,18 @@ def main():
                     stat_col3.metric("Plage de tailles (px)", f"{int(min(areas))} - {int(max(areas))}")
                 
                 diff = abs(len(filtered_props) - expected_insects)
-                if diff == 0: st.success(f"✅ Nombre exact d'insectes détectés: {len(filtered_props)}")
-                elif diff <= 2: st.warning(f"⚠️ {len(filtered_props)} insectes détectés (écart de {diff} par rapport au nombre attendu)")
+                if diff == 0: st.success(f"✅ Nombre exact d'Arthropodes détectés: {len(filtered_props)}")
+                elif diff <= 2: st.warning(f"⚠️ {len(filtered_props)} Arthropodes détectés (écart de {diff} par rapport au nombre attendu)")
                 else:
-                    st.error(f"❌ {len(filtered_props)} insectes détectés (écart important de {diff} par rapport au nombre attendu)")
+                    st.error(f"❌ {len(filtered_props)} Arthropodes détectés (écart important de {diff} par rapport au nombre attendu)")
                     if not auto_adjust and st.button("Essayer l'auto-ajustement"):
                         st.session_state['auto_adjust'] = True
                         st.session_state['preset_choice'] = "Auto-ajustement"
                         st.experimental_rerun()
 
-                if st.button("Extraire et télécharger les insectes isolés (standardisés carrés)"):
+                if st.button("Extraire et télécharger les Arthropodes isolés (standardisés carrés)"):
                     temp_dir = tempfile.mkdtemp()
-                    zip_path = os.path.join(temp_dir, "insectes_isoles_carres.zip")
+                    zip_path = os.path.join(temp_dir, "Arthropodes_isoles_carres.zip")
                 
                     with zipfile.ZipFile(zip_path, 'w') as zipf:
                         for i, prop in enumerate(filtered_props):
@@ -278,11 +278,11 @@ def main():
                     with open(zip_path, "rb") as f:
                         bytes_data = f.read()
                         b64 = base64.b64encode(bytes_data).decode()
-                        href = f'<a href="data:application/zip;base64,{b64}" download="insectes_isoles_carres.zip">Télécharger tous les insectes isolés (ZIP, images carrées)</a>'
+                        href = f'<a href="data:application/zip;base64,{b64}" download="Arthropodes_isoles_carres.zip">Télécharger tous les Arthropodes isolés (ZIP, images carrées)</a>'
                         st.markdown(href, unsafe_allow_html=True)
                 
                     if filtered_props:
-                        st.write("Aperçu des premiers insectes isolés (standardisés carrés):")
+                        st.write("Aperçu des premiers Arthropodes isolés (standardisés carrés):")
                         preview_cols = st.columns(min(5, len(filtered_props)))
                 
                         for i, col in enumerate(preview_cols):
@@ -334,7 +334,7 @@ def main():
                                 square_preview_img_white_bg[y_offset_preview:y_offset_preview+roi_height, x_offset_preview:x_offset_preview+roi_width] = insect_on_white_roi
                                 # --- FIN MODIFICATION APERÇU ---
 
-                                col.image(cv2.cvtColor(square_preview_img_white_bg, cv2.COLOR_BGR2RGB), caption=f"Insecte {i+1}", use_column_width=True)
+                                col.image(cv2.cvtColor(square_preview_img_white_bg, cv2.COLOR_BGR2RGB), caption=f"Arthropodes {i+1}", use_column_width=True)
     
     with tab2:
         st.header("Guide d'optimisation des paramètres")
@@ -342,26 +342,26 @@ def main():
         st.write("""
         L'application propose plusieurs configurations prédéfinies pour différents types d'images:
         - **Par défaut**: Configuration optimisée (flou: 7, bloc adaptatif: 35, seuillage: 5, noyau morpho: 1, itérations: 3, surface min: 1000, marge: 17)
-        - **Grands insectes**: Optimisée pour détecter des insectes de grande taille
-        - **Petits insectes**: Optimisée pour les insectes de petite taille ou les détails fins
+        - **Grands Arthropodes**: Optimisée pour détecter des Arthropodes de grande taille
+        - **Petits Arthropodes**: Optimisée pour les Arthropodes de petite taille ou les détails fins
         - **Haute précision**: Réduit les fausses détections au prix d'une sensibilité légèrement plus faible
-        - **Arthropodes à pattes fines**: Conçue pour les insectes avec des appendices fins qui pourraient être perdus.
-        - **Auto-ajustement**: Ajuste automatiquement les paramètres pour détecter le nombre d'insectes spécifié.
+        - **Arthropodes à pattes fines**: Conçue pour les Arthropodes avec des appendices fins qui pourraient être perdus.
+        - **Auto-ajustement**: Ajuste automatiquement les paramètres pour détecter le nombre d'Arthropodes spécifié.
         
         Vous pouvez commencer avec l'une de ces configurations puis ajuster les paramètres selon vos besoins.
         """)
         st.subheader("Utilisation de l'auto-ajustement")
         st.write("""
-        La fonctionnalité d'auto-ajustement permet de spécifier le nombre d'insectes attendus dans l'image:
-        1. Indiquez le nombre d'insectes que vous savez présents dans l'image.
+        La fonctionnalité d'auto-ajustement permet de spécifier le nombre d'Arthropodes attendus dans l'image:
+        1. Indiquez le nombre d'Arthropodes que vous savez présents dans l'image.
         2. Sélectionnez le mode "Auto-ajustement" dans les configurations prédéfinies.
         3. L'application testera différentes combinaisons de paramètres pour trouver celle qui détecte au mieux le nombre souhaité.
-        Cette approche est particulièrement utile lorsque vous connaissez le nombre exact d'insectes.
+        Cette approche est particulièrement utile lorsque vous connaissez le nombre exact d'Arthropodes.
         """)
         st.subheader("Problèmes courants et solutions")
         col1_guide, col2_guide = st.columns(2)
         with col1_guide:
-            st.markdown("#### Trop d'insectes détectés")
+            st.markdown("#### Trop d'Arthropodes détectés")
             st.write("""
             1. **Augmentez la surface minimale** (min_area).
             2. **Augmentez la constante de seuillage** (adapt_c).
@@ -369,7 +369,7 @@ def main():
             4. **Augmentez la taille du noyau morphologique** et/ou le nombre d'itérations.
             """)
         with col2_guide:
-            st.markdown("#### Insectes manquants ou incomplets")
+            st.markdown("#### Arthropodes manquants ou incomplets")
             st.write("""
             1. **Diminuez la constante de seuillage** (adapt_c).
             2. **Diminuez la surface minimale** (min_area).
@@ -379,16 +379,16 @@ def main():
         st.subheader("Guide étape par étape")
         st.write("""
         1. **Commencez avec une configuration prédéfinie**.
-        2. **Affinez le seuillage adaptatif**: `adapt_block_size` (plus grand que l'insecte), `adapt_c` (sensibilité).
+        2. **Affinez le seuillage adaptatif**: `adapt_block_size` (plus grand que l'Arthropodes), `adapt_c` (sensibilité).
         3. **Optimisez les opérations morphologiques**: `morph_kernel` et `morph_iterations`.
         4. **Ajustez le filtrage**: `min_area`, circularité.
         5. **Vérifiez visuellement** et affinez.
         """)
         st.markdown("### Exemples de paramètres efficaces")
         param_examples = [
-            {"type": "Insectes bien contrastés", "blur": "3-5", "block": "15-25", "c": "5-10", "morph": "3, 1-2 it.", "area": "100-200"},
-            {"type": "Insectes à faible contraste", "blur": "3", "block": "15-21", "c": "2-5", "morph": "3, 1 it.", "area": "50-100"},
-            {"type": "Grands insectes avec détails", "blur": "5-7", "block": "31-41", "c": "8-12", "morph": "5, 2-3 it.", "area": "300-500"}
+            {"type": "Arthropodes bien contrastés", "blur": "3-5", "block": "15-25", "c": "5-10", "morph": "3, 1-2 it.", "area": "100-200"},
+            {"type": "Arthropodes à faible contraste", "blur": "3", "block": "15-21", "c": "2-5", "morph": "3, 1 it.", "area": "50-100"},
+            {"type": "Grands Arthropodes avec détails", "blur": "5-7", "block": "31-41", "c": "8-12", "morph": "5, 2-3 it.", "area": "300-500"}
         ]
         table_data = {
             "Type d'image": [ex["type"] for ex in param_examples], "Flou": [ex["blur"] for ex in param_examples],
