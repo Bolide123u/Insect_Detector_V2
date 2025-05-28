@@ -374,7 +374,7 @@ def main():
             
             col_btn1, col_btn2, col_btn3 = st.columns([1,2,1]) 
             with col_btn2:
-                if st.button("▶️ Segmenter les Images (avec leurs paramètres individuels)", key="process_all_btn_tab1_v5_styled", use_container_width=True):
+                if st.button("▶️ Segmenter les Images", key="process_all_btn_tab1_v5_styled", use_container_width=True):
                     num_all_proc_tab1_v5 = len(st.session_state.image_data_list)
                     if num_all_proc_tab1_v5 > 0:
                         prog_bar_all_tab1_v5 = st.progress(0)
