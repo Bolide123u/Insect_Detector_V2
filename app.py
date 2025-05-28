@@ -22,8 +22,8 @@ MODEL_INPUT_SIZE = (224, 224)
 ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
     "Isopodes": "Décomposeurs et Ingénieurs du sol",
-    "Carabide": "Prédateurs", # Note: Model might output "Carabidae"
-    "Carabidae": "Prédateurs", # Added for consistency if model outputs this
+    "Carabide": "Prédateurs", 
+    "Carabidae": "Prédateurs", 
     "Opiliones et Araneae": "Prédateurs",
     "Mouches des semis": "Ravageur"
 }
@@ -36,7 +36,6 @@ DEFAULT_SEG_PARAMS = {
     "min_circularity": 0.3, "apply_relative_filter": True
 }
 
-# Liste des termes latins à mettre en italique (sensible à la casse)
 LATIN_TERMS_FOR_ITALICS = ["Apidae", "Isopodes", "Carabide", "Opiliones", "Araneae", "Carabidae", "Andrenidae"]
 
 
@@ -250,7 +249,6 @@ def italicize_latin_terms(text, latin_terms):
              text = text.replace(term, f"*{term}*")
     return text
 
-# Helper function to convert DataFrame to CSV for download
 @st.cache_data
 def convert_df_to_csv(df_to_convert):
     return df_to_convert.to_csv(index=False).encode('utf-8')
@@ -456,10 +454,7 @@ def main():
                         summary_data_display_v5 = []
                         for label_name_disp_v5, count_disp_v5 in sorted(raw_label_counts_display_v5.items(), key=lambda item_disp_v5: item_disp_v5[1], reverse=True):
                             display_label_name_val_v5 = "Opiliones et Araneae" if label_name_disp_v5 == "Arachnides" else label_name_disp_v5
-                            
-                            # MODIFICATION: Groupe taxonomique sans italique pour le tableau
                             term_to_display_in_table = display_label_name_val_v5 
-                            
                             eco_func_disp_v5 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v5, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v5, DEFAULT_ECOLOGICAL_FUNCTION))
                             summary_data_display_v5.append({
                                 "Groupe Taxonomique": term_to_display_in_table, 
@@ -470,37 +465,52 @@ def main():
                         if summary_data_display_v5:
                             df_summary_display_v5 = pd.DataFrame(summary_data_display_v5)
                             
-                            # MODIFICATION: Style du DataFrame pour affichage et téléchargement
-                            styled_df = df_summary_display_v5.style.set_properties(**{
-                                'font-size': '1.2em', # Police plus grande
-                                'width': '100%'       # Utilise la largeur de la colonne
-                            }).set_table_attributes('style="border-collapse: collapse; width: 100%;"') \
-                              .set_table_styles([
-                                  {'selector': 'th', 'props': [('border', '1px solid #ddd'), ('padding', '10px'), ('text-align', 'left'), ('background-color', '#f0f0f0')]},
-                                  {'selector': 'td', 'props': [('border', '1px solid #ddd'), ('padding', '10px'), ('text-align', 'left')]}
-                              ])
-                            html_table = styled_df.to_html(escape=False, index=False, justify='left')
+                            # MODIFICATION: Style du DataFrame pour affichage amélioré et téléchargement
+                            styler = df_summary_display_v5.style
+                            styler = styler.hide(axis="index") # Masquer la colonne d'index
+                            styler = styler.set_properties(**{
+                                'font-size': '1.15em', # Ajuster la taille de la police
+                                'border': '1px solid #555', # Bordure pour les cellules
+                                'width': 'auto' # Laisse la largeur s'adapter au contenu
+                            })
+                            styler = styler.set_table_attributes('style="border-collapse: collapse; width: 100%;"') 
+                            styler = styler.set_table_styles([
+                                {'selector': 'th', 'props': [
+                                    ('border', '1px solid #555'), 
+                                    ('padding', '10px'), 
+                                    ('text-align', 'left'), 
+                                    ('background-color', '#404040'), # Fond plus foncé pour l'en-tête
+                                    ('color', '#f0f0f0'),            # Texte clair pour l'en-tête
+                                    ('font-weight', 'bold')
+                                ]},
+                                {'selector': 'td', 'props': [
+                                    ('border', '1px solid #555'), 
+                                    ('padding', '8px'), # Un peu moins de padding pour les cellules
+                                    ('text-align', 'left')
+                                    # La couleur du texte et du fond des cellules 'td' sera gérée par le thème Streamlit
+                                ]}
+                            ])
+                            
+                            html_table = styler.to_html(escape=False, justify='left')
                             st.markdown(html_table, unsafe_allow_html=True)
-                            st.markdown("<br>", unsafe_allow_html=True) # Espace
+                            st.markdown("<br>", unsafe_allow_html=True)
 
-                            # Bouton de téléchargement pour le tableau
                             csv_data_download = convert_df_to_csv(df_summary_display_v5) 
                             st.download_button(
                                 label="📥 Télécharger le résumé (CSV)",
                                 data=csv_data_download,
                                 file_name="resume_identifications_arthropodes.csv",
                                 mime="text/csv",
-                                key="download_summary_csv_button",
+                                key="download_summary_csv_button_v3", # Clé unique
                                 use_container_width=True
                             )
-                            st.markdown("<br>", unsafe_allow_html=True) # Espace
+                            st.markdown("<br>", unsafe_allow_html=True)
 
                         else:
                             st.write("Aucune donnée pour le tableau récapitulatif.")
 
-                        # Calcul de l'indice de Shannon (reste identique)
                         ecological_counts_for_shannon_calc_v5 = {}
-                        for data_row_shannon_v5 in summary_data_display_v5: # Utilise summary_data_display_v5 qui a les termes non-italiques
+                        for data_row_shannon_v5 in summary_data_display_v5:
                             func_shannon_v5 = data_row_shannon_v5["Fonction Écologique"]
                             ecological_counts_for_shannon_calc_v5[func_shannon_v5] = ecological_counts_for_shannon_calc_v5.get(func_shannon_v5, 0) + data_row_shannon_v5["Quantité"]
                         
@@ -567,8 +577,6 @@ def main():
                             st.error(f"{label_detail_id_tab2_val_final_v5} ({confidence_detail_id_tab2_val_final_v5*100:.2f}%)")
                         else:
                             label_to_display_detail_val_final_v5 = "Opiliones et Araneae" if label_detail_id_tab2_val_final_v5 == "Arachnides" else label_detail_id_tab2_val_final_v5
-                            
-                            # Italicize for detailed display (kept as before)
                             term_to_display_final_detail = label_to_display_detail_val_final_v5
                             if label_to_display_detail_val_final_v5 in LATIN_TERMS_FOR_ITALICS or \
                                (label_to_display_detail_val_final_v5 == "Opiliones et Araneae" and ("Opiliones" in LATIN_TERMS_FOR_ITALICS or "Araneae" in LATIN_TERMS_FOR_ITALICS)):
@@ -606,7 +614,6 @@ def main():
         - Le modèle d'identification est entraîné sur un ensemble spécifique de classes. Les identifications pour des arthropodes très différents de ces classes peuvent être moins précises.
         """)
 
-
     st.markdown("---")
     ps_text = """
     **PS :** Quelques espèces de Carabidae (carabes) consomment des graines d'adventices, voire de semences agricoles (très marginalement). 
@@ -615,7 +622,6 @@ def main():
     Ainsi, une photo d'Andrenidae pourrait être classée comme Apidae, bien que le modèle ait été entraîné sur des photos d'Apidae.
     """
     st.markdown(italicize_latin_terms(ps_text, LATIN_TERMS_FOR_ITALICS), unsafe_allow_html=True)
-
 
 if __name__ == "__main__":
     if 'image_data_list' not in st.session_state: st.session_state.image_data_list = []
