@@ -443,7 +443,7 @@ def main():
                 
                 if not all_labels_pie_tab2_an_list_v5: st.warning("Aucun arthropode n'a pu être identifié sur l'ensemble des images traitées.")
                 else:
-                    col_table_summary_display_v5, col_pie_chart_display_final_v5 = st.columns([2, 1]) 
+                    col_table_summary_display_v5, col_pie_chart_display_final_v5 = st.columns([2, 3]) 
 
                     with col_table_summary_display_v5:
                         st.subheader("Résumé des Identifications")
