@@ -24,7 +24,7 @@ ECOLOGICAL_FUNCTIONS_MAP = {
     "Isopoda": "Décomposeurs et Ingénieurs du sol",
     "Carabidae": "Prédateurs", 
     "Carabidae": "Prédateurs", 
-    "Opiliones et Araneae": "Prédateurs",
+    "Araneae et Opiliones": "Prédateurs",
     "Anthomyiidae": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
