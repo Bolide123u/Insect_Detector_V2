@@ -22,10 +22,10 @@ MODEL_INPUT_SIZE = (224, 224)
 # MODIFICATIONS Terminologie et Labels
 ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
-    "Isopodes": "Décomposeurs et Ingénieurs du sol",
-    "Carabide": "Ennemis naturels", # MODIFIÉ
+    "Isopoda": "Décomposeurs et Ingénieurs du sol",
+    "Carabidae": "Ennemis naturels", # MODIFIÉ
     "Opiliones et Araneae": "Ennemis naturels", # MODIFIÉ
-    "Mouches des semis": "Ravageur"
+    "Anthomyiidae": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 
