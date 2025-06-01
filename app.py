@@ -19,25 +19,22 @@ SAVED_MODEL_DIR_PATH = "model.savedmodel"
 LABELS_PATH = "labels.txt"
 MODEL_INPUT_SIZE = (224, 224)
 
+# MODIFICATIONS Terminologie et Labels
 ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
-    "Isopoda": "Décomposeurs et Ingénieurs du sol",
-    "Carabidae": "Prédateurs", 
-    "Carabidae": "Prédateurs", 
-    "Araneae et Opiliones": "Prédateurs",
-    "Anthomyiidae": "Ravageur"
+    "Isopodes": "Décomposeurs et Ingénieurs du sol",
+    "Carabide": "Ennemis naturels", # MODIFIÉ
+    "Opiliones et Araneae": "Ennemis naturels", # MODIFIÉ
+    "Mouches des semis": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 
 DEFAULT_SEG_PARAMS = {
-    "target_insect_count": 1,
+    # "target_insect_count": 1, # Plus utilisé car pas d'auto-tune
     "blur_kernel": 5, "adapt_block_size": 35, "adapt_c": 5, "min_area": 150,
     "morph_kernel": 3, "morph_iterations": 2, "margin": 15, "use_circularity": False,
     "min_circularity": 0.3, "apply_relative_filter": True
 }
-
-LATIN_TERMS_FOR_ITALICS = ["Apidae", "Isopoda", "Carabidae", "Opiliones", "Araneae", "Carabidae", "Andrenidae"]
-
 
 # --- Fonctions Utilitaires ---
 def make_square(image, fill_color=(255, 255, 255)):
@@ -112,9 +109,9 @@ def process_image(image_cv, params):
         areas = [p.area for p in filtered_props]
         if areas: 
             avg_area = np.mean(areas)
-            if avg_area > max(1.5 * min_area_param, 50): 
-                relative_threshold_area = 0.1 * avg_area 
-                final_relative_threshold = max(relative_threshold_area, min_area_param) 
+            if avg_area > max(1.5 * min_area_param, 50):
+                relative_threshold_area = 0.1 * avg_area
+                final_relative_threshold = max(relative_threshold_area, min_area_param)
                 filtered_props_after_relative = [p for p in filtered_props if p.area >= final_relative_threshold]
                 filtered_props = filtered_props_after_relative
     
@@ -128,130 +125,108 @@ def extract_arthropods(image, filtered_props, margin_val):
     extracted_arthropods_list = []
     for i, prop in enumerate(filtered_props):
         minr, minc, maxr, maxc = prop.bbox
-        minr_marged = max(0, minr - margin_val)
-        minc_marged = max(0, minc - margin_val)
-        maxr_marged = min(image.shape[0], maxr + margin_val)
-        maxc_marged = min(image.shape[1], maxc + margin_val)
-        
+        minr_marged = max(0, minr - margin_val); minc_marged = max(0, minc - margin_val)
+        maxr_marged = min(image.shape[0], maxr + margin_val); maxc_marged = min(image.shape[1], maxc + margin_val)
         arthropod_roi = image[minr_marged:maxr_marged, minc_marged:maxc_marged].copy()
         roi_height, roi_width = arthropod_roi.shape[:2]
-
-        if roi_height == 0 or roi_width == 0: continue 
-            
+        if roi_height == 0 or roi_width == 0: continue
         mask_from_coords = np.zeros((roi_height, roi_width), dtype=np.uint8)
-        for r_orig, c_orig in prop.coords: 
-            r_roi = r_orig - minr_marged 
-            c_roi = c_orig - minc_marged
-            if 0 <= r_roi < roi_height and 0 <= c_roi < roi_width: 
-                mask_from_coords[r_roi, c_roi] = 255
-        
-        kernel_close_initial = np.ones((5,5), np.uint8) 
-        mask_refined = cv2.morphologyEx(mask_from_coords, cv2.MORPH_CLOSE, kernel_close_initial, iterations=2) 
-
+        for r_orig, c_orig in prop.coords:
+            r_roi = r_orig - minr_marged; c_roi = c_orig - minc_marged
+            if 0 <= r_roi < roi_height and 0 <= c_roi < roi_width: mask_from_coords[r_roi, c_roi] = 255
+        kernel_close_initial = np.ones((5,5), np.uint8); mask_refined = cv2.morphologyEx(mask_from_coords, cv2.MORPH_CLOSE, kernel_close_initial, iterations=2) 
         contours_refined, _ = cv2.findContours(mask_refined, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         final_mask_for_extraction = np.zeros_like(mask_refined)
         if contours_refined:
             largest_contour_refined = max(contours_refined, key=cv2.contourArea)
-            if cv2.contourArea(largest_contour_refined) > 5: 
-                 cv2.drawContours(final_mask_for_extraction, [largest_contour_refined], -1, 255, thickness=cv2.FILLED)
-        else: 
-            if np.sum(mask_refined) > 5 * 255 : 
-                final_mask_for_extraction = mask_refined 
-
-        if np.sum(final_mask_for_extraction) == 0: continue 
-
+            if cv2.contourArea(largest_contour_refined) > 5: cv2.drawContours(final_mask_for_extraction, [largest_contour_refined], -1, 255, thickness=cv2.FILLED)
+        elif np.sum(mask_refined) > 5 * 255 : final_mask_for_extraction = mask_refined 
+        if np.sum(final_mask_for_extraction) == 0: continue
         mask_3ch = cv2.cvtColor(final_mask_for_extraction, cv2.COLOR_GRAY2BGR)
         white_bg = np.ones_like(arthropod_roi, dtype=np.uint8) * 255 
         arthropod_on_white = np.where(mask_3ch == 255, arthropod_roi, white_bg) 
-        
         square_arthropod = make_square(arthropod_on_white, fill_color=(255, 255, 255)) 
         extracted_arthropods_list.append({"image": square_arthropod, "index": i, "original_prop": prop}) 
     return extracted_arthropods_list
 
 @st.cache_resource
 def load_saved_model_and_labels(model_dir_path, labels_path_arg):
-    model_layer = None
-    class_names_loaded = None
+    model_layer = None; class_names_loaded = None
     try:
         abs_model_path = os.path.abspath(model_dir_path)
         if not (os.path.exists(abs_model_path) and os.path.isdir(abs_model_path) and os.path.exists(os.path.join(abs_model_path, "saved_model.pb"))):
-            print(f"DEBUG: Chemin du modèle invalide ou incomplet: {abs_model_path}")
-            return None, None
+            print(f"DEBUG: Modèle invalide: {abs_model_path}"); return None, None
         model_layer = tf.keras.layers.TFSMLayer(abs_model_path, call_endpoint='serving_default')
         abs_labels_path = os.path.abspath(labels_path_arg)
         if not os.path.exists(abs_labels_path):
-            print(f"DEBUG: Fichier de labels introuvable: {abs_labels_path}")
-            return model_layer, None 
+            print(f"DEBUG: Labels introuvables: {abs_labels_path}"); return model_layer, None
         with open(abs_labels_path, "r", encoding="utf-8") as f:
             class_names_raw = [line.strip() for line in f.readlines()]
             class_names_loaded = []
             for line in class_names_raw:
                 parts = line.split(" ", 1)
-                if len(parts) > 1 and parts[0].isdigit():
-                    class_names_loaded.append(parts[1]) 
-                else:
-                    class_names_loaded.append(line) 
+                if len(parts) > 1 and parts[0].isdigit(): class_names_loaded.append(parts[1])
+                else: class_names_loaded.append(line)
         return model_layer, class_names_loaded
-    except Exception as e:
-        print(f"DEBUG: Erreur chargement modèle/labels: {e}")
-        return model_layer, class_names_loaded 
+    except Exception as e: print(f"DEBUG: Erreur chargement modèle/labels: {e}"); return model_layer, class_names_loaded
 
 def predict_arthropod_saved_model(image_cv2, model_layer_arg, class_names_arg, input_size):
-    if model_layer_arg is None or class_names_arg is None:
-        return "Erreur Modèle/Labels", 0.0, []
+    if model_layer_arg is None or class_names_arg is None: return "Erreur Modèle/Labels", 0.0, []
     img_resized = cv2.resize(image_cv2, input_size, interpolation=cv2.INTER_AREA)
-    image_array = np.asarray(img_resized, dtype=np.float32) 
-    normalized_image_array = (image_array / 127.5) - 1.0 
-    input_tensor = tf.convert_to_tensor(normalized_image_array)
-    input_tensor = tf.expand_dims(input_tensor, axis=0) 
-    predictions_np = None 
+    image_array = np.asarray(img_resized, dtype=np.float32); normalized_image_array = (image_array / 127.5) - 1.0
+    input_tensor = tf.convert_to_tensor(normalized_image_array); input_tensor = tf.expand_dims(input_tensor, axis=0)
+    predictions_np = None
     try:
-        predictions_output = model_layer_arg(input_tensor) 
+        predictions_output = model_layer_arg(input_tensor)
         if isinstance(predictions_output, dict):
             if len(predictions_output) == 1: predictions_tensor = list(predictions_output.values())[0]
-            elif 'outputs' in predictions_output: predictions_tensor = predictions_output['outputs'] 
-            elif 'output_0' in predictions_output: predictions_tensor = predictions_output['output_0'] 
-            else: 
+            elif 'outputs' in predictions_output: predictions_tensor = predictions_output['outputs']
+            elif 'output_0' in predictions_output: predictions_tensor = predictions_output['output_0']
+            else:
                 key_found = None
                 for key, value in predictions_output.items():
-                    if isinstance(value, tf.Tensor) and len(value.shape) == 2 and value.shape[0] == 1: 
+                    if isinstance(value, tf.Tensor) and len(value.shape) == 2 and value.shape[0] == 1:
                         predictions_tensor = value; key_found = key; break
                 if key_found is None: return "Erreur Sortie Modèle Dict", 0.0, []
-        else: predictions_tensor = predictions_output 
+        else: predictions_tensor = predictions_output
         if hasattr(predictions_tensor, 'numpy'): predictions_np = predictions_tensor.numpy()
-        else: predictions_np = np.array(predictions_tensor) 
+        else: predictions_np = np.array(predictions_tensor)
     except Exception as e_predict: print(f"DEBUG: Erreur prédiction: {e_predict}"); return "Erreur Prédiction", 0.0, []
     if predictions_np is None or predictions_np.size == 0: return "Erreur Prédiction Vide", 0.0, []
-    predicted_class_index = np.argmax(predictions_np[0])
-    confidence_score = predictions_np[0][predicted_class_index]
+    predicted_class_index = np.argmax(predictions_np[0]); confidence_score = predictions_np[0][predicted_class_index]
     if predicted_class_index >= len(class_names_arg): return "Erreur Index Label", confidence_score, predictions_np[0]
     label_name = class_names_arg[predicted_class_index]
-    return label_name, confidence_score, predictions_np[0] 
+    return label_name, confidence_score, predictions_np[0]
 
 def create_label_display_image(label_image_data, filtered_props):
-    if label_image_data.ndim == 3 and label_image_data.shape[2] == 1:
-        label_image_data = label_image_data.squeeze(axis=2)
+    if label_image_data.ndim == 3 and label_image_data.shape[2] == 1: label_image_data = label_image_data.squeeze(axis=2)
     elif label_image_data.ndim != 2:
         h, w = (200,200) if not filtered_props or not hasattr(filtered_props[0],'image') else filtered_props[0].image.shape[:2]
         return np.zeros((h, w, 3), dtype=np.uint8)
-
     label_display = np.zeros((label_image_data.shape[0], label_image_data.shape[1], 3), dtype=np.uint8)
     for prop_item in filtered_props:
-        color = np.random.randint(50, 256, size=3) 
-        for coord in prop_item.coords: 
+        color = np.random.randint(50, 256, size=3)
+        for coord in prop_item.coords:
             if 0 <= coord[0] < label_display.shape[0] and 0 <= coord[1] < label_display.shape[1]:
                 label_display[coord[0], coord[1]] = color
     return label_display
 
-def italicize_latin_terms(text, latin_terms):
-    for term in latin_terms:
-        if term in text: 
-             text = text.replace(term, f"*{term}*")
-    return text
-
-@st.cache_data
-def convert_df_to_csv(df_to_convert):
-    return df_to_convert.to_csv(index=False).encode('utf-8')
+# MODIFICATION: Fonction pour gérer le callback des widgets de la sidebar
+def sidebar_param_changed():
+    """Appelé quand un paramètre de la sidebar est modifié."""
+    if 'active_image_id_for_params' in st.session_state and st.session_state.active_image_id_for_params is not None:
+        active_id = st.session_state.active_image_id_for_params
+        try:
+            active_img_data = next(item for item in st.session_state.image_data_list if item["id"] == active_id)
+            
+            # Récupérer les nouvelles valeurs des widgets (qui sont déjà dans active_img_data["params"] grâce aux clés)
+            # Et retraiter l'image
+            with st.spinner(f"Mise à jour et retraitement de {active_img_data['filename']}..."):
+                active_img_data["processed_data"] = process_image(active_img_data["cv_image"], active_img_data["params"])
+                active_img_data["is_processed"] = True
+            # st.rerun() # Le rerun est implicite avec les widgets on_change, mais on peut le forcer si besoin
+        except StopIteration:
+            pass # L'image active n'existe plus
 
 def main():
     st.set_page_config(layout="wide")
@@ -269,44 +244,57 @@ def main():
             st.session_state.model_obj = model_loaded
             if class_names_loaded:
                 st.session_state.class_names_list = class_names_loaded
-                if not st.session_state.first_model_load_message_displayed: 
-                    st.sidebar.success("Modèle et labels chargés !")
-                    st.session_state.first_model_load_message_displayed = True
-            else: st.sidebar.warning("Modèle chargé, mais échec du chargement des labels.")
+                if not st.session_state.first_model_load_message_displayed:
+                    # Le message s'affichera une fois dans la sidebar si elle est déjà rendue,
+                    # ou au prochain rendu de la sidebar.
+                    st.session_state.first_model_load_message_content = "Modèle et labels chargés !"
+                    st.session_state.first_model_load_message_type = "success"
+                    st.session_state.first_model_load_message_displayed = True # Marquer comme affiché (ou à afficher)
+            else: 
+                st.session_state.first_model_load_message_content = "Modèle chargé, mais échec du chargement des labels."
+                st.session_state.first_model_load_message_type = "warning"
+                st.session_state.first_model_load_message_displayed = True
     
     model_to_use = st.session_state.model_obj
     class_names_to_use = st.session_state.class_names_list
 
     with st.sidebar:
         st.header("Paramètres de Segmentation")
+        # Afficher le message de chargement du modèle ici
+        if 'first_model_load_message_content' in st.session_state and st.session_state.first_model_load_message_content:
+            if st.session_state.first_model_load_message_type == "success":
+                st.success(st.session_state.first_model_load_message_content)
+            else:
+                st.warning(st.session_state.first_model_load_message_content)
+            del st.session_state.first_model_load_message_content # Pour ne l'afficher qu'une fois
+
         active_id_sidebar = st.session_state.active_image_id_for_params
-        active_img_data_sb = None 
+        active_img_data_sb = None
         if active_id_sidebar:
-            try: 
+            try:
                 active_img_data_sb = next(item for item in st.session_state.image_data_list if item["id"] == active_id_sidebar)
-            except StopIteration: 
-                st.session_state.active_image_id_for_params = None; active_id_sidebar = None 
+            except StopIteration:
+                st.session_state.active_image_id_for_params = None; active_id_sidebar = None
 
-        if active_img_data_sb: 
+        if active_img_data_sb:
             st.markdown(f"**Pour : {active_img_data_sb['filename']}**")
-            params_sb_ref = active_img_data_sb["params"] 
-            params_sb_ref["blur_kernel"]=st.slider("Flou (0=aucun)",0,21,params_sb_ref["blur_kernel"],1,key=f"sb_blur_{active_id_sidebar}")
-            params_sb_ref["adapt_block_size"]=st.slider("Bloc Adapt.",3,51,params_sb_ref["adapt_block_size"],2,key=f"sb_block_{active_id_sidebar}")
-            params_sb_ref["adapt_c"]=st.slider("Constante C",-20,20,params_sb_ref["adapt_c"],1,key=f"sb_c_{active_id_sidebar}")
-            params_sb_ref["min_area"]=st.slider("Aire Min",10,10000,params_sb_ref["min_area"],10,key=f"sb_area_{active_id_sidebar}")
-            params_sb_ref["morph_kernel"]=st.slider("Noyau Morpho",1,15,params_sb_ref["morph_kernel"],2,key=f"sb_morph_k_{active_id_sidebar}")
-            params_sb_ref["morph_iterations"]=st.slider("It. Morpho",1,5,params_sb_ref["morph_iterations"],1,key=f"sb_morph_i_{active_id_sidebar}")
-            params_sb_ref["margin"]=st.slider("Marge Ext.",0,50,params_sb_ref["margin"],key=f"sb_margin_{active_id_sidebar}")
-            params_sb_ref["use_circularity"]=st.checkbox("Filtre Circ.",params_sb_ref["use_circularity"],key=f"sb_circ_c_{active_id_sidebar}")
+            params_sb_ref = active_img_data_sb["params"]
+            
+            # Utiliser on_change pour déclencher le retraitement
+            params_sb_ref["blur_kernel"]=st.slider("Flou (0=aucun)",0,21,params_sb_ref["blur_kernel"],1,key=f"sb_blur_{active_id_sidebar}", on_change=sidebar_param_changed)
+            params_sb_ref["adapt_block_size"]=st.slider("Bloc Adapt.",3,51,params_sb_ref["adapt_block_size"],2,key=f"sb_block_{active_id_sidebar}", on_change=sidebar_param_changed)
+            params_sb_ref["adapt_c"]=st.slider("Constante C",-20,20,params_sb_ref["adapt_c"],1,key=f"sb_c_{active_id_sidebar}", on_change=sidebar_param_changed)
+            params_sb_ref["min_area"]=st.slider("Aire Min",10,10000,params_sb_ref["min_area"],10,key=f"sb_area_{active_id_sidebar}", on_change=sidebar_param_changed)
+            params_sb_ref["morph_kernel"]=st.slider("Noyau Morpho",1,15,params_sb_ref["morph_kernel"],2,key=f"sb_morph_k_{active_id_sidebar}", on_change=sidebar_param_changed)
+            params_sb_ref["morph_iterations"]=st.slider("It. Morpho",1,5,params_sb_ref["morph_iterations"],1,key=f"sb_morph_i_{active_id_sidebar}", on_change=sidebar_param_changed)
+            params_sb_ref["margin"]=st.slider("Marge Ext.",0,50,params_sb_ref["margin"],key=f"sb_margin_{active_id_sidebar}", on_change=sidebar_param_changed) # La marge affecte l'extraction, pas process_image directement
+            params_sb_ref["use_circularity"]=st.checkbox("Filtre Circ.",params_sb_ref["use_circularity"],key=f"sb_circ_c_{active_id_sidebar}", on_change=sidebar_param_changed)
             if params_sb_ref["use_circularity"]:
-                params_sb_ref["min_circularity"]=st.slider("Circ. Min Val",0.0,1.0,params_sb_ref["min_circularity"],0.05,key=f"sb_circ_v_{active_id_sidebar}")
-            params_sb_ref["apply_relative_filter"]=st.checkbox("Filtre Relatif",params_sb_ref["apply_relative_filter"],key=f"sb_rel_f_{active_id_sidebar}")
+                params_sb_ref["min_circularity"]=st.slider("Circ. Min Val",0.0,1.0,params_sb_ref["min_circularity"],0.05,key=f"sb_circ_v_{active_id_sidebar}", on_change=sidebar_param_changed)
+            params_sb_ref["apply_relative_filter"]=st.checkbox("Filtre Relatif",params_sb_ref["apply_relative_filter"],key=f"sb_rel_f_{active_id_sidebar}", on_change=sidebar_param_changed)
 
-            if st.button("Appliquer & Traiter Image Active", key=f"sb_apply_btn_v4_{active_id_sidebar}"):
-                with st.spinner(f"Traitement de {active_img_data_sb['filename']}..."):
-                    active_img_data_sb["processed_data"] = process_image(active_img_data_sb["cv_image"], params_sb_ref)
-                    active_img_data_sb["is_processed"] = True
-                st.rerun() 
+            # Le bouton "Appliquer" n'est plus nécessaire car on_change s'en charge
+            # if st.button("Appliquer & Traiter Image Active", key=f"sb_apply_btn_v6_{active_id_sidebar}"): ...
         else:
             st.info("Sélectionnez une image (bouton '⚙️ Configurer') pour ajuster ses paramètres ici.")
 
@@ -314,314 +302,248 @@ def main():
 
     with tab1:
         st.header("Configuration et Segmentation Image par Image")
-        uploaded_files_tab1_main_v5 = st.file_uploader(
+        uploaded_files_tab1_main_v7 = st.file_uploader(
             "1. Choisissez vos images", type=["jpg", "jpeg", "png"],
-            accept_multiple_files=True, key="tab1_file_uploader_main_v5"
+            accept_multiple_files=True, key="tab1_file_uploader_main_v7"
         )
         
-        if uploaded_files_tab1_main_v5:
-            new_ids_uploaded_tab1_v5 = {f.file_id + "_" + f.name for f in uploaded_files_tab1_main_v5} 
-            existing_map_in_session_tab1_v5 = {img_d_sess["id"]: img_d_sess for img_d_sess in st.session_state.image_data_list}
-            updated_list_session_tab1_v5 = [] 
-            files_changed_in_session_tab1_v5 = False
+        if uploaded_files_tab1_main_v7:
+            new_ids_uploaded_tab1_v7 = {f.file_id + "_" + f.name for f in uploaded_files_tab1_main_v7}
+            existing_map_in_session_tab1_v7 = {img_d_sess["id"]: img_d_sess for img_d_sess in st.session_state.image_data_list}
+            updated_list_session_tab1_v7 = []
+            files_changed_in_session_tab1_v7 = False
+            newly_added_ids = []
 
-            for up_file_item_tab1_v5 in uploaded_files_tab1_main_v5:
-                img_id_up_item_tab1_v5 = up_file_item_tab1_v5.file_id + "_" + up_file_item_tab1_v5.name
-                if img_id_up_item_tab1_v5 in existing_map_in_session_tab1_v5: 
-                    updated_list_session_tab1_v5.append(existing_map_in_session_tab1_v5[img_id_up_item_tab1_v5])
+            for up_file_item_tab1_v7 in uploaded_files_tab1_main_v7:
+                img_id_up_item_tab1_v7 = up_file_item_tab1_v7.file_id + "_" + up_file_item_tab1_v7.name
+                if img_id_up_item_tab1_v7 in existing_map_in_session_tab1_v7:
+                    updated_list_session_tab1_v7.append(existing_map_in_session_tab1_v7[img_id_up_item_tab1_v7])
                 else: 
-                    files_changed_in_session_tab1_v5 = True
-                    bytes_up_item_tab1_v5 = up_file_item_tab1_v5.getvalue()
-                    cv_img_up_item_tab1_v5 = cv2.imdecode(np.frombuffer(bytes_up_item_tab1_v5, np.uint8), cv2.IMREAD_COLOR)
-                    updated_list_session_tab1_v5.append({
-                        "id": img_id_up_item_tab1_v5, "filename": up_file_item_tab1_v5.name,
-                        "image_bytes": bytes_up_item_tab1_v5, "cv_image": cv_img_up_item_tab1_v5,
-                        "params": DEFAULT_SEG_PARAMS.copy(), 
+                    files_changed_in_session_tab1_v7 = True
+                    bytes_up_item_tab1_v7 = up_file_item_tab1_v7.getvalue()
+                    cv_img_up_item_tab1_v7 = cv2.imdecode(np.frombuffer(bytes_up_item_tab1_v7, np.uint8), cv2.IMREAD_COLOR)
+                    new_image_data = {
+                        "id": img_id_up_item_tab1_v7, "filename": up_file_item_tab1_v7.name,
+                        "image_bytes": bytes_up_item_tab1_v7, "cv_image": cv_img_up_item_tab1_v7,
+                        "params": DEFAULT_SEG_PARAMS.copy(),
                         "processed_data": None, "is_processed": False
-                    })
-            if len(updated_list_session_tab1_v5) != len(st.session_state.image_data_list): files_changed_in_session_tab1_v5 = True
-            st.session_state.image_data_list = updated_list_session_tab1_v5
-            if files_changed_in_session_tab1_v5: 
-                if st.session_state.active_image_id_for_params not in new_ids_uploaded_tab1_v5:
-                     st.session_state.active_image_id_for_params = st.session_state.image_data_list[0]["id"] if st.session_state.image_data_list else None
+                    }
+                    updated_list_session_tab1_v7.append(new_image_data)
+                    newly_added_ids.append(img_id_up_item_tab1_v7)
+
+            if len(updated_list_session_tab1_v7) != len(st.session_state.image_data_list): files_changed_in_session_tab1_v7 = True
+            st.session_state.image_data_list = updated_list_session_tab1_v7
+            
+            if files_changed_in_session_tab1_v7:
+                if newly_added_ids: # Si de nouvelles images ont été ajoutées
+                    st.session_state.active_image_id_for_params = newly_added_ids[0] # Activer la première nouvelle image
+                elif st.session_state.image_data_list: # Sinon, si la liste n'est pas vide, activer la première
+                    st.session_state.active_image_id_for_params = st.session_state.image_data_list[0]["id"]
+                else: # Si la liste est vide
+                    st.session_state.active_image_id_for_params = None
                 st.rerun()
 
         if not st.session_state.image_data_list: st.info("Veuillez téléverser des images.")
         
         if st.session_state.image_data_list:
             st.markdown("---")
-            button_style = """
-                <style>
-                .big-button {
-                    display: inline-block;
-                    padding: 0.75em 1.5em;
-                    font-size: 1.2em;
-                    font-weight: bold;
-                    color: white;
-                    background-color: #FF4B4B; 
-                    border: none;
-                    border-radius: 0.5em;
-                    text-align: center;
-                    text-decoration: none;
-                    cursor: pointer;
-                }
-                .big-button:hover {
-                    background-color: #FF6B6B;
-                }
-                </style>
-            """
-            st.markdown(button_style, unsafe_allow_html=True) 
-            
-            col_btn1, col_btn2, col_btn3 = st.columns([1,2,1]) 
-            with col_btn2:
-                if st.button("▶️ Segmenter les Images", key="process_all_btn_tab1_v5_styled", use_container_width=True):
-                    num_all_proc_tab1_v5 = len(st.session_state.image_data_list)
-                    if num_all_proc_tab1_v5 > 0:
-                        prog_bar_all_tab1_v5 = st.progress(0)
-                        stat_all_tab1_v5 = st.empty() 
-                        for i_all_p_tab1_v5, img_d_p_all_tab1_v5 in enumerate(st.session_state.image_data_list):
-                            stat_all_tab1_v5.text(f"Traitement de {img_d_p_all_tab1_v5['filename']} ({i_all_p_tab1_v5+1}/{num_all_proc_tab1_v5})...")
-                            img_d_p_all_tab1_v5["processed_data"] = process_image(img_d_p_all_tab1_v5["cv_image"], img_d_p_all_tab1_v5["params"])
-                            img_d_p_all_tab1_v5["is_processed"] = True
-                            prog_bar_all_tab1_v5.progress((i_all_p_tab1_v5+1)/num_all_proc_tab1_v5)
-                        stat_all_tab1_v5.success("Toutes les images ont été traitées.")
+            col_btn_process_all_1_v7, col_btn_process_all_2_v7, col_btn_process_all_3_v7 = st.columns([0.5, 2, 0.5])
+            with col_btn_process_all_2_v7:
+                if st.button("▶️ Segmenter TOUTES les Images (avec leurs paramètres respectifs)", key="process_all_btn_tab1_v7_styled", use_container_width=True):
+                    num_all_proc_tab1_v7 = len(st.session_state.image_data_list)
+                    if num_all_proc_tab1_v7 > 0:
+                        prog_bar_all_tab1_v7 = st.progress(0)
+                        stat_all_tab1_v7 = st.empty()
+                        for i_all_p_tab1_v7, img_d_p_all_tab1_v7 in enumerate(st.session_state.image_data_list):
+                            stat_all_tab1_v7.text(f"Traitement de {img_d_p_all_tab1_v7['filename']} ({i_all_p_tab1_v7+1}/{num_all_proc_tab1_v7})...")
+                            img_d_p_all_tab1_v7["processed_data"] = process_image(img_d_p_all_tab1_v7["cv_image"], img_d_p_all_tab1_v7["params"])
+                            img_d_p_all_tab1_v7["is_processed"] = True
+                            prog_bar_all_tab1_v7.progress((i_all_p_tab1_v7+1)/num_all_proc_tab1_v7)
+                        stat_all_tab1_v7.success("Toutes les images ont été traitées.")
                     else:
                         st.warning("Aucune image à traiter.")
 
-
-        for idx_main_tab1_disp_v5, img_data_main_tab1_disp_v5 in enumerate(st.session_state.image_data_list):
-            st.markdown(f"--- \n ### Image {idx_main_tab1_disp_v5 + 1}: {img_data_main_tab1_disp_v5['filename']}")
-            select_btn_key_main_tab1_disp_v5 = f"select_cfg_btn_main_tab1_disp_v5_{img_data_main_tab1_disp_v5['id']}"
+        for idx_main_tab1_disp_v7, img_data_main_tab1_disp_v7 in enumerate(st.session_state.image_data_list):
+            st.markdown(f"--- \n ### Image {idx_main_tab1_disp_v7 + 1}: {img_data_main_tab1_disp_v7['filename']}")
+            select_btn_key_main_tab1_disp_v7 = f"select_cfg_btn_main_tab1_disp_v7_{img_data_main_tab1_disp_v7['id']}"
             
-            col_img_main_tab1_disp_v5, col_actions_main_tab1_disp_v5 = st.columns([4,1.2]) 
-            with col_img_main_tab1_disp_v5:
-                 st.image(cv2.cvtColor(img_data_main_tab1_disp_v5["cv_image"], cv2.COLOR_BGR2RGB), caption="Originale", use_column_width=True)
-            with col_actions_main_tab1_disp_v5:
-                st.markdown("<br>", unsafe_allow_html=True) 
-                if st.button(f"⚙️ Configurer", key=select_btn_key_main_tab1_disp_v5, help=f"Éditer les paramètres pour {img_data_main_tab1_disp_v5['filename']}", use_container_width=True):
-                    st.session_state.active_image_id_for_params = img_data_main_tab1_disp_v5["id"]
-                    st.rerun() 
+            # MODIFICATION: Taille d'affichage des images réduite dans les colonnes
+            cols_img_display_item_tab1_v7 = st.columns(3) # Originale, Morpho, Labels
+            
+            with cols_img_display_item_tab1_v7[0]:
+                # Pour contrôler la taille, on peut utiliser `width` ou `use_column_width` si la colonne est déjà dimensionnée.
+                # Si les colonnes sont de taille égale, `use_column_width` est bien.
+                # Sinon, on peut spécifier une largeur fixe, ex: `width=300`
+                st.image(cv2.cvtColor(img_data_main_tab1_disp_v7["cv_image"], cv2.COLOR_BGR2RGB), caption="Originale", use_column_width=True)
+            
+            if img_data_main_tab1_disp_v7["is_processed"] and img_data_main_tab1_disp_v7["processed_data"]:
+                with cols_img_display_item_tab1_v7[1]:
+                    st.image(img_data_main_tab1_disp_v7["processed_data"]["opening"], channels="GRAY", caption="Résultat Morphologique", use_column_width=True)
+                with cols_img_display_item_tab1_v7[2]:
+                    label_disp_main_tab1_val_v7 = create_label_display_image(img_data_main_tab1_disp_v7["processed_data"]["labels"], img_data_main_tab1_disp_v7["processed_data"]["filtered_props"])
+                    num_det_main_tab1_val_v7 = len(img_data_main_tab1_disp_v7['processed_data']['filtered_props'])
+                    st.image(label_disp_main_tab1_val_v7, caption=f"Arthropodes Détectés: {num_det_main_tab1_val_v7}", use_column_width=True)
+                st.metric(label=f"Arthropodes Détectés", value=num_det_main_tab1_val_v7)
+            else:
+                with cols_img_display_item_tab1_v7[1]: st.caption("Attente morpho.")
+                with cols_img_display_item_tab1_v7[2]: st.caption("Attente labels.")
 
-            if img_data_main_tab1_disp_v5["is_processed"] and img_data_main_tab1_disp_v5["processed_data"]:
-                cols_res_main_tab1_disp_v5 = st.columns(2)
-                with cols_res_main_tab1_disp_v5[0]:
-                    st.image(img_data_main_tab1_disp_v5["processed_data"]["opening"], channels="GRAY", caption="Résultat Morphologique", use_column_width=True)
-                with cols_res_main_tab1_disp_v5[1]:
-                    label_disp_main_tab1_val_v5 = create_label_display_image(img_data_main_tab1_disp_v5["processed_data"]["labels"], img_data_main_tab1_disp_v5["processed_data"]["filtered_props"])
-                    num_det_main_tab1_val_v5 = len(img_data_main_tab1_disp_v5['processed_data']['filtered_props'])
-                    st.image(label_disp_main_tab1_val_v5, caption=f"Arthropodes Détectés: {num_det_main_tab1_val_v5}", use_column_width=True)
-                st.metric(label=f"Arthropodes Détectés", value=num_det_main_tab1_val_v5) 
-            else: st.caption("Résultats de segmentation apparaîtront ici après traitement.")
+            # Bouton "Configurer" reste sous les images
+            if st.button(f"⚙️ Configurer {img_data_main_tab1_disp_v7['filename']}", key=select_btn_key_main_tab1_disp_v7, help=f"Éditer les paramètres pour {img_data_main_tab1_disp_v7['filename']}", use_container_width=True):
+                st.session_state.active_image_id_for_params = img_data_main_tab1_disp_v7["id"]
+                st.rerun()
 
     with tab2:
         st.header("Analyse Globale des Arthropodes Identifiés")
         if model_to_use is None or class_names_to_use is None:
-            st.error("Modèle d'identification ou labels non disponibles. Vérifiez le chargement au démarrage.")
+            st.error("Modèle d'identification ou labels non disponibles.")
         elif not st.session_state.image_data_list or not any(img_d_tab2_an["is_processed"] for img_d_tab2_an in st.session_state.image_data_list):
             st.info("Veuillez d'abord traiter des images (Onglet 'Segmentation par Image').")
         else:
-            all_labels_pie_tab2_an_list_v5 = []
-            imgs_processed_tab2_an_list_v5 = [img_tab2_an for img_tab2_an in st.session_state.image_data_list if img_tab2_an["is_processed"] and img_tab2_an["processed_data"]]
+            all_labels_pie_tab2_an_list_v7 = []
+            imgs_processed_tab2_an_list_v7 = [img_tab2_an for img_tab2_an in st.session_state.image_data_list if img_tab2_an["is_processed"] and img_tab2_an["processed_data"]]
 
-            if not imgs_processed_tab2_an_list_v5: st.info("Aucune image traitée disponible pour l'identification.")
+            if not imgs_processed_tab2_an_list_v7: st.info("Aucune image traitée pour l'identification.")
             else:
-                st.write(f"Analyse basée sur {len(imgs_processed_tab2_an_list_v5)} image(s) traitée(s).")
-                for img_item_tab2_an_val_v5 in imgs_processed_tab2_an_list_v5:
-                    if not (img_item_tab2_an_val_v5.get("cv_image") is not None and 
-                            img_item_tab2_an_val_v5.get("processed_data", {}).get("filtered_props") is not None and
-                            img_item_tab2_an_val_v5.get("params", {}).get("margin") is not None):
-                        continue 
-                    extracted_arthropods_tab2_an_list_v5 = extract_arthropods(
-                        img_item_tab2_an_val_v5["cv_image"], img_item_tab2_an_val_v5["processed_data"]["filtered_props"], 
-                        img_item_tab2_an_val_v5["params"]["margin"]
+                st.write(f"Analyse basée sur {len(imgs_processed_tab2_an_list_v7)} image(s) traitée(s).")
+                for img_item_tab2_an_val_v7 in imgs_processed_tab2_an_list_v7:
+                    if not (img_item_tab2_an_val_v7.get("cv_image") is not None and 
+                            img_item_tab2_an_val_v7.get("processed_data", {}).get("filtered_props") is not None and
+                            img_item_tab2_an_val_v7.get("params", {}).get("margin") is not None):
+                        continue
+                    extracted_arthropods_tab2_an_list_v7 = extract_arthropods(
+                        img_item_tab2_an_val_v7["cv_image"], img_item_tab2_an_val_v7["processed_data"]["filtered_props"], 
+                        img_item_tab2_an_val_v7["params"]["margin"]
                     )
-                    for arthropod_tab2_an_item_v5 in extracted_arthropods_tab2_an_list_v5:
-                        label_val_tab2_an_item_v5, _, _ = predict_arthropod_saved_model(
-                            arthropod_tab2_an_item_v5["image"], model_to_use, class_names_to_use, MODEL_INPUT_SIZE
+                    for arthropod_tab2_an_item_v7 in extracted_arthropods_tab2_an_list_v7:
+                        label_val_tab2_an_item_v7, _, _ = predict_arthropod_saved_model(
+                            arthropod_tab2_an_item_v7["image"], model_to_use, class_names_to_use, MODEL_INPUT_SIZE
                         )
-                        if "Erreur" not in label_val_tab2_an_item_v5: all_labels_pie_tab2_an_list_v5.append(label_val_tab2_an_item_v5)
+                        if "Erreur" not in label_val_tab2_an_item_v7: all_labels_pie_tab2_an_list_v7.append(label_val_tab2_an_item_v7)
                 
-                if not all_labels_pie_tab2_an_list_v5: st.warning("Aucun arthropode n'a pu être identifié sur l'ensemble des images traitées.")
+                if not all_labels_pie_tab2_an_list_v7: st.warning("Aucun arthropode n'a pu être identifié.")
                 else:
-                    col_table_summary_display_v5, col_pie_chart_display_final_v5 = st.columns([2, 1]) 
+                    col_table_summary_display_v7, col_pie_chart_display_final_v7 = st.columns([2, 1]) # Ratio pour tableau à gauche
 
-                    with col_table_summary_display_v5:
+                    with col_table_summary_display_v7:
                         st.subheader("Résumé des Identifications")
-                        raw_label_counts_display_v5 = {}
-                        for lbl_disp_v5 in all_labels_pie_tab2_an_list_v5:
-                            raw_label_counts_display_v5[lbl_disp_v5] = raw_label_counts_display_v5.get(lbl_disp_v5, 0) + 1
+                        raw_label_counts_display_v7 = {}
+                        for lbl_disp_v7 in all_labels_pie_tab2_an_list_v7:
+                            raw_label_counts_display_v7[lbl_disp_v7] = raw_label_counts_display_v7.get(lbl_disp_v7, 0) + 1
                         
-                        summary_data_display_v5 = []
-                        for label_name_disp_v5, count_disp_v5 in sorted(raw_label_counts_display_v5.items(), key=lambda item_disp_v5: item_disp_v5[1], reverse=True):
-                            display_label_name_val_v5 = "Opiliones et Araneae" if label_name_disp_v5 == "Arachnides" else label_name_disp_v5
-                            term_to_display_in_table = display_label_name_val_v5 
-                            eco_func_disp_v5 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v5, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v5, DEFAULT_ECOLOGICAL_FUNCTION))
-                            summary_data_display_v5.append({
-                                "Groupe Taxonomique": term_to_display_in_table, 
-                                "Quantité": count_disp_v5,
-                                "Fonction Écologique": eco_func_disp_v5
+                        summary_data_display_v7 = []
+                        for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
+                            display_label_name_val_v7 = "Opiliones et Araneae" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
+                            eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
+                            summary_data_display_v7.append({
+                                "Groupe Taxonomique": display_label_name_val_v7,
+                                "Quantité": count_disp_v7,
+                                "Fonction Écologique": eco_func_disp_v7
                             })
-                        
-                        if summary_data_display_v5:
-                            df_summary_display_v5 = pd.DataFrame(summary_data_display_v5)
-                            
-                            # MODIFICATION: Style du DataFrame pour affichage amélioré et téléchargement
-                            styler = df_summary_display_v5.style
-                            styler = styler.hide(axis="index") # Masquer la colonne d'index
-                            styler = styler.set_properties(**{
-                                'font-size': '1.15em', # Ajuster la taille de la police
-                                'border': '1px solid #555', # Bordure pour les cellules
-                                'width': 'auto' # Laisse la largeur s'adapter au contenu
-                            })
-                            styler = styler.set_table_attributes('style="border-collapse: collapse; width: 100%;"') 
-                            styler = styler.set_table_styles([
-                                {'selector': 'th', 'props': [
-                                    ('border', '1px solid #555'), 
-                                    ('padding', '10px'), 
-                                    ('text-align', 'left'), 
-                                    ('background-color', '#404040'), # Fond plus foncé pour l'en-tête
-                                    ('color', '#f0f0f0'),            # Texte clair pour l'en-tête
-                                    ('font-weight', 'bold')
-                                ]},
-                                {'selector': 'td', 'props': [
-                                    ('border', '1px solid #555'), 
-                                    ('padding', '8px'), # Un peu moins de padding pour les cellules
-                                    ('text-align', 'left')
-                                    # La couleur du texte et du fond des cellules 'td' sera gérée par le thème Streamlit
-                                ]}
-                            ])
-                            
-                            html_table = styler.to_html(escape=False, justify='left')
-                            st.markdown(html_table, unsafe_allow_html=True)
-                            st.markdown("<br>", unsafe_allow_html=True)
-
-                            csv_data_download = convert_df_to_csv(df_summary_display_v5) 
-                            st.download_button(
-                                label="📥 Télécharger le résumé (CSV)",
-                                data=csv_data_download,
-                                file_name="resume_identifications_arthropodes.csv",
-                                mime="text/csv",
-                                key="download_summary_csv_button_v3", # Clé unique
-                                use_container_width=True
-                            )
-                            st.markdown("<br>", unsafe_allow_html=True)
-
+                        if summary_data_display_v7:
+                            df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
+                            # MODIFICATION: Affichage du DataFrame sans HTML, avec hide_index
+                            st.dataframe(df_summary_display_v7, use_container_width=True, hide_index=True)
                         else:
                             st.write("Aucune donnée pour le tableau récapitulatif.")
 
-                        ecological_counts_for_shannon_calc_v5 = {}
-                        for data_row_shannon_v5 in summary_data_display_v5:
-                            func_shannon_v5 = data_row_shannon_v5["Fonction Écologique"]
-                            ecological_counts_for_shannon_calc_v5[func_shannon_v5] = ecological_counts_for_shannon_calc_v5.get(func_shannon_v5, 0) + data_row_shannon_v5["Quantité"]
+                        ecological_counts_for_shannon_calc_v7 = {}
+                        for data_row_shannon_v7 in summary_data_display_v7:
+                            func_shannon_v7 = data_row_shannon_v7["Fonction Écologique"]
+                            ecological_counts_for_shannon_calc_v7[func_shannon_v7] = ecological_counts_for_shannon_calc_v7.get(func_shannon_v7, 0) + data_row_shannon_v7["Quantité"]
                         
-                        if ecological_counts_for_shannon_calc_v5:
-                            shannon_val_display_v5 = calculate_shannon_index(ecological_counts_for_shannon_calc_v5)
-                            st.metric(label="Indice de Shannon Fonctionnel Global (H')", value=f"{shannon_val_display_v5:.3f}")
-                            if shannon_val_display_v5 == 0 and sum(ecological_counts_for_shannon_calc_v5.values()) > 0:
+                        if ecological_counts_for_shannon_calc_v7:
+                            shannon_val_display_v7 = calculate_shannon_index(ecological_counts_for_shannon_calc_v7)
+                            st.metric(label="Indice de Shannon Fonctionnel Global (H')", value=f"{shannon_val_display_v7:.3f}")
+                            if shannon_val_display_v7 == 0 and sum(ecological_counts_for_shannon_calc_v7.values()) > 0:
                                 st.caption("H'=0: une seule fonction écologique présente.")
-                            elif shannon_val_display_v5 > 0:
-                                num_functions = len(ecological_counts_for_shannon_calc_v5)
-                                max_s_disp_v5 = math.log(num_functions) if num_functions > 0 else 0
-                                st.caption(f"Max H' pour {num_functions} fonction(s): {max_s_disp_v5:.3f}.")
+                            elif shannon_val_display_v7 > 0:
+                                max_s_disp_v7 = math.log(len(ecological_counts_for_shannon_calc_v7)) if len(ecological_counts_for_shannon_calc_v7) > 0 else 0
+                                st.caption(f"Max H' pour {len(ecological_counts_for_shannon_calc_v7)} fonctions: {max_s_disp_v7:.3f}.")
                         else:
                             st.caption("Aucune donnée pour l'indice de Shannon.")
 
-                    with col_pie_chart_display_final_v5:
-                        ecological_counts_for_pie_chart_final_v5 = ecological_counts_for_shannon_calc_v5 
-                        if ecological_counts_for_pie_chart_final_v5:
+                    with col_pie_chart_display_final_v7:
+                        ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
+                        if ecological_counts_for_pie_chart_final_v7:
                             st.subheader("Fonctions Écologiques")
-                            labels_pie_keys_final_v5 = list(ecological_counts_for_pie_chart_final_v5.keys())
-                            sizes_pie_values_final_v5 = list(ecological_counts_for_pie_chart_final_v5.values())
-                            colors_map_pie_final_v5 = {"Décomposeurs et Ingénieurs du sol": "#8B4513", "Pollinisateurs": "#FFD700", 
-                                              "Prédateurs": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
-                            pie_colors_list_final_v5 = [colors_map_pie_final_v5.get(lbl_p_final_v5, "#CCCCCC") for lbl_p_final_v5 in labels_pie_keys_final_v5]
+                            labels_pie_keys_final_v7 = list(ecological_counts_for_pie_chart_final_v7.keys())
+                            sizes_pie_values_final_v7 = list(ecological_counts_for_pie_chart_final_v7.values())
+                            colors_map_pie_final_v7 = {"Décomposeurs et Ingénieurs du sol": "#8B4513", "Pollinisateurs": "#FFD700", 
+                                              "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"} # MODIFIÉ
+                            pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
                             
-                            fig_pie_final_display_v5, ax_pie_final_display_v5 = plt.subplots(figsize=(2.5, 1.75)) 
-                            ax_pie_final_display_v5.pie(sizes_pie_values_final_v5, labels=None, autopct='%1.0f%%', startangle=90, 
-                                       colors=pie_colors_list_final_v5, pctdistance=0.8, textprops={'fontsize': 4}) 
-                            ax_pie_final_display_v5.axis('equal')
-                            legend_handles_v5 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v5.get(name_v5, "#CCCCCC")) for name_v5 in labels_pie_keys_final_v5]
-                            ax_pie_final_display_v5.legend(legend_handles_v5, labels_pie_keys_final_v5, loc='upper center', 
-                                                    bbox_to_anchor=(0.5, -0.05), ncol=max(1, len(labels_pie_keys_final_v5)//2 + len(labels_pie_keys_final_v5)%2 ), 
-                                                    fontsize='xx-small', frameon=False) 
-                            plt.subplots_adjust(bottom=0.3 if len(labels_pie_keys_final_v5)>2 else 0.2) 
-                            st.pyplot(fig_pie_final_display_v5)
+                            # MODIFICATION : Taille du Pie Chart (ex: 3.0 x 2.1) -> (3.0 x 2.5) pour un peu plus de hauteur
+                            fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(3.0, 2.5)) 
+                            ax_pie_final_display_v7.pie(sizes_pie_values_final_v7, labels=None, autopct='%1.0f%%', startangle=90, 
+                                       colors=pie_colors_list_final_v7, pctdistance=0.8, textprops={'fontsize': 6}) # Police un peu plus grande
+                            ax_pie_final_display_v7.axis('equal')
+                            legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
+                            ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='upper center', 
+                                                    bbox_to_anchor=(0.5, -0.02), ncol=max(1, len(labels_pie_keys_final_v7)//2), 
+                                                    fontsize='xx-small', frameon=False)
+                            plt.subplots_adjust(bottom=0.2 if len(labels_pie_keys_final_v7)>2 else 0.1) # Ajuster pour légende
+                            st.pyplot(fig_pie_final_display_v7)
                         else: st.write("Aucune fonction écologique à afficher.")
             
             st.markdown("--- \n ### Identification Détaillée par Image")
-            for idx_detail_tab2_disp_final_v5, img_data_item_detail_id_tab2_disp_final_v5 in enumerate(imgs_processed_tab2_an_list_v5):
-                st.markdown(f"#### {img_data_item_detail_id_tab2_disp_final_v5['filename']}")
-                if not (img_data_item_detail_id_tab2_disp_final_v5.get("cv_image") is not None and 
-                        img_data_item_detail_id_tab2_disp_final_v5.get("processed_data", {}).get("filtered_props") is not None and
-                        img_data_item_detail_id_tab2_disp_final_v5.get("params", {}).get("margin") is not None):
-                    st.write("Données de segmentation incomplètes pour cette image.")
+            for idx_detail_tab2_disp_final_v7, img_data_item_detail_id_tab2_disp_final_v7 in enumerate(imgs_processed_tab2_an_list_v7):
+                st.markdown(f"#### {img_data_item_detail_id_tab2_disp_final_v7['filename']}")
+                if not (img_data_item_detail_id_tab2_disp_final_v7.get("cv_image") is not None and 
+                        img_data_item_detail_id_tab2_disp_final_v7.get("processed_data", {}).get("filtered_props") is not None and
+                        img_data_item_detail_id_tab2_disp_final_v7.get("params", {}).get("margin") is not None):
+                    st.write("Données de segmentation incomplètes.")
                     continue
-                extracted_arthropods_detail_id_tab2_disp_final_v5 = extract_arthropods(
-                    img_data_item_detail_id_tab2_disp_final_v5["cv_image"], 
-                    img_data_item_detail_id_tab2_disp_final_v5["processed_data"]["filtered_props"], 
-                    img_data_item_detail_id_tab2_disp_final_v5["params"]["margin"]
+                extracted_arthropods_detail_id_tab2_disp_final_v7 = extract_arthropods(
+                    img_data_item_detail_id_tab2_disp_final_v7["cv_image"], 
+                    img_data_item_detail_id_tab2_disp_final_v7["processed_data"]["filtered_props"], 
+                    img_data_item_detail_id_tab2_disp_final_v7["params"]["margin"]
                 )
-                if not extracted_arthropods_detail_id_tab2_disp_final_v5:
+                if not extracted_arthropods_detail_id_tab2_disp_final_v7:
                     st.write("Aucun arthropode extrait pour identification sur cette image.")
                     continue
-                num_cols_id_detail_disp_tab2_val_final_v5 = 3 
-                cols_id_detail_disp_tab2_val_final_v5 = st.columns(num_cols_id_detail_disp_tab2_val_final_v5)
-                col_idx_id_detail_disp_tab2_val_final_v5 = 0
-                for arthropod_detail_item_id_tab2_disp_final_v5 in extracted_arthropods_detail_id_tab2_disp_final_v5:
-                    label_detail_id_tab2_val_final_v5, confidence_detail_id_tab2_val_final_v5, _ = predict_arthropod_saved_model(
-                        arthropod_detail_item_id_tab2_disp_final_v5["image"], model_to_use, class_names_to_use, MODEL_INPUT_SIZE
+                num_cols_id_detail_disp_tab2_val_final_v7 = 3
+                cols_id_detail_disp_tab2_val_final_v7 = st.columns(num_cols_id_detail_disp_tab2_val_final_v7)
+                col_idx_id_detail_disp_tab2_val_final_v7 = 0
+                for arthropod_detail_item_id_tab2_disp_final_v7 in extracted_arthropods_detail_id_tab2_disp_final_v7:
+                    label_detail_id_tab2_val_final_v7, confidence_detail_id_tab2_val_final_v7, _ = predict_arthropod_saved_model(
+                        arthropod_detail_item_id_tab2_disp_final_v7["image"], model_to_use, class_names_to_use, MODEL_INPUT_SIZE
                     )
-                    with cols_id_detail_disp_tab2_val_final_v5[col_idx_id_detail_disp_tab2_val_final_v5 % num_cols_id_detail_disp_tab2_val_final_v5]:
-                        st.image(cv2.cvtColor(arthropod_detail_item_id_tab2_disp_final_v5["image"], cv2.COLOR_BGR2RGB), caption=f"Arthropode #{arthropod_detail_item_id_tab2_disp_final_v5['index'] + 1}", width=150)
-                        if "Erreur" in label_detail_id_tab2_val_final_v5:
-                            st.error(f"{label_detail_id_tab2_val_final_v5} ({confidence_detail_id_tab2_val_final_v5*100:.2f}%)")
+                    with cols_id_detail_disp_tab2_val_final_v7[col_idx_id_detail_disp_tab2_val_final_v7 % num_cols_id_detail_disp_tab2_val_final_v7]:
+                        st.image(cv2.cvtColor(arthropod_detail_item_id_tab2_disp_final_v7["image"], cv2.COLOR_BGR2RGB), caption=f"Arthropode #{arthropod_detail_item_id_tab2_disp_final_v7['index'] + 1}", width=150)
+                        if "Erreur" in label_detail_id_tab2_val_final_v7:
+                            st.error(f"{label_detail_id_tab2_val_final_v7} ({confidence_detail_id_tab2_val_final_v7*100:.2f}%)")
                         else:
-                            label_to_display_detail_val_final_v5 = "Opiliones et Araneae" if label_detail_id_tab2_val_final_v5 == "Arachnides" else label_detail_id_tab2_val_final_v5
-                            term_to_display_final_detail = label_to_display_detail_val_final_v5
-                            if label_to_display_detail_val_final_v5 in LATIN_TERMS_FOR_ITALICS or \
-                               (label_to_display_detail_val_final_v5 == "Opiliones et Araneae" and ("Opiliones" in LATIN_TERMS_FOR_ITALICS or "Araneae" in LATIN_TERMS_FOR_ITALICS)):
-                                term_to_display_final_detail = f"*{label_to_display_detail_val_final_v5}*"
-
-                            st.markdown(f"**Label:** {term_to_display_final_detail}", unsafe_allow_html=True)
-                            st.markdown(f"**Fonction:** {ECOLOGICAL_FUNCTIONS_MAP.get(label_to_display_detail_val_final_v5, ECOLOGICAL_FUNCTIONS_MAP.get(label_detail_id_tab2_val_final_v5, DEFAULT_ECOLOGICAL_FUNCTION))}")
-                            st.markdown(f"**Confiance:** {confidence_detail_id_tab2_val_final_v5*100:.2f}%")
-                    col_idx_id_detail_disp_tab2_val_final_v5 += 1
-                if col_idx_id_detail_disp_tab2_val_final_v5 > 0 : st.markdown("---") 
+                            label_to_display_detail_val_final_v7 = "Opiliones et Araneae" if label_detail_id_tab2_val_final_v7 == "Arachnides" else label_detail_id_tab2_val_final_v7
+                            st.markdown(f"**Label:** {label_to_display_detail_val_final_v7}")
+                            st.markdown(f"**Fonction:** {ECOLOGICAL_FUNCTIONS_MAP.get(label_to_display_detail_val_final_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_detail_id_tab2_val_final_v7, DEFAULT_ECOLOGICAL_FUNCTION))}")
+                            st.markdown(f"**Confiance:** {confidence_detail_id_tab2_val_final_v7*100:.2f}%")
+                    col_idx_id_detail_disp_tab2_val_final_v7 += 1
+                st.markdown("---")
 
     with tab3:
         st.header("Guide dʼutilisation")
         st.subheader("Segmentation par Image (Onglet 1)")
         st.write("""
-        1.  **Téléversez vos images** en utilisant le bouton "1. Choisissez vos images". Vous pouvez sélectionner plusieurs fichiers.
-        2.  Pour chaque image téléversée, une miniature s'affiche. Sous chaque image, un bouton "⚙️ Configurer" est disponible. Cliquez dessus pour **sélectionner cette image comme 'active'**.
-        3.  Une fois une image sélectionnée, ses **paramètres de segmentation spécifiques s'affichent et peuvent être modifiés dans la barre latérale de gauche**. Le nom de l'image active est indiqué en haut de la barre latérale.
-        4.  Après avoir ajusté les paramètres dans la barre latérale, cliquez sur le bouton **"Appliquer & Traiter Image Active"** (situé DANS la barre latérale) pour traiter UNIQUEMENT l'image actuellement sélectionnée avec ses nouveaux paramètres. Les résultats (image morphologique et détections) s'afficheront sous l'image originale dans l'onglet principal.
-        5.  Un bouton général **"▶️ Segmenter les Images (avec leurs paramètres individuels)"** est disponible en haut de la liste des images dans l'onglet "Segmentation par Image". Cliquez dessus pour lancer la segmentation sur **TOUTES les images téléversées**, chacune utilisant ses propres paramètres (ceux par défaut ou ceux que vous avez ajustés individuellement).
+        1.  **Téléversez vos images.**
+        2.  Pour chaque image, un bouton "⚙️ Configurer cette Image" apparaît. Cliquez dessus pour rendre cette image 'active'.
+        3.  Les paramètres de l'image active s'affichent et peuvent être modifiés dans la **barre latérale de gauche**. Chaque modification d'un paramètre dans la sidebar déclenche automatiquement le retraitement de l'image active.
+        4.  Un bouton "▶️ Segmenter les Images" est disponible pour lancer la segmentation sur l'ensemble du lot, chacune avec ses propres paramètres configurés.
         """)
         st.subheader("Analyse Globale (Onglet 2)")
         st.write("""
-        Cet onglet devient actif une fois que des images ont été traitées (segmentées ET identifiées). Il affiche :
-        -   Un **tableau récapitulatif** des groupes taxonomiques identifiés, leur quantité, et leur fonction écologique. Ce tableau peut être téléchargé au format CSV.
-        -   Un **graphique circulaire (camembert)** illustrant la proportion des différentes fonctions écologiques.
-        -   L'**Indice de Shannon Fonctionnel Global (H')**, calculé sur la base des fonctions écologiques.
-        -   Une section **"Identification Détaillée par Image"** où chaque arthropode extrait de chaque image est montré avec son label d'identification, sa fonction écologique, et le score de confiance du modèle.
-        Assurez-vous que le modèle d'identification et les labels sont correctement chargés (un message de succès apparaît dans la sidebar au démarrage si c'est le cas).
-        """)
-        st.subheader("Conseils")
-        st.write("""
-        - Si les résultats de segmentation ne sont pas satisfaisants pour une image, ajustez ses paramètres (flou, aire minimale, etc.) via la barre latérale et retraitez-la.
-        - Le filtre de circularité et le filtre relatif peuvent aider à affiner la détection en éliminant les objets non pertinents. Expérimentez avec ces options.
-        - Le modèle d'identification est entraîné sur un ensemble spécifique de classes. Les identifications pour des arthropodes très différents de ces classes peuvent être moins précises.
+        Affiche un tableau récapitulatif des identifications, un graphique des fonctions écologiques, l'Indice de Shannon, et l'identification détaillée.
         """)
 
     st.markdown("---")
-    ps_text = """
-    **PS :** Quelques espèces de Carabidae (carabes) consomment des graines d'adventices, voire de semences agricoles (très marginalement). 
-    Les Isopoda peuvent aussi consommer de jeunes pousses (rare et faible impact).
+    st.markdown("""
+    **PS :** Quelques espèces de *Carabidae* (carabes) consomment des graines d'adventices, voire de semences agricoles (très marginalement). 
+    Les *Isopodes* peuvent aussi consommer de jeunes pousses (rare et faible impact).
+    Les *Opiliones* rendent également des services de décomposition des cadavres d'arthropodes.
     En cas de photos d'arthropodes en dehors des classes définies par le modèle, l'outil renverra la classe qu'il considère comme étant la plus proche visuellement. 
-    Ainsi, une photo d'Andrenidae pourrait être classée comme Apidae, bien que le modèle ait été entraîné sur des photos d'Apidae.
-    """
-    st.markdown(italicize_latin_terms(ps_text, LATIN_TERMS_FOR_ITALICS), unsafe_allow_html=True)
+    Ainsi, une photo d'*Andrenidae* pourrait être classée comme *Apidae*, bien que le modèle ait été entraîné sur des photos d'*Apidae*.
+    """) # Termes latins en italique manuellement pour le texte du bas
+
 
 if __name__ == "__main__":
     if 'image_data_list' not in st.session_state: st.session_state.image_data_list = []
