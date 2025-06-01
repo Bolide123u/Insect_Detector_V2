@@ -33,7 +33,6 @@ ECOLOGICAL_PRECISIONS_MAP = {
     "Isopoda": "Consommation des jeunes pousses (rare et impact très faible)",
     "Opiliones et Araneae": "Les opilions sont également des décomposeurs de la matière organique"
 }
-# MODIFICATION: "NA" pour les cases sans précision
 DEFAULT_PRECISION = "NA" 
 
 DEFAULT_SEG_PARAMS = {
@@ -429,8 +428,25 @@ def main():
                     if summary_data_display_v7:
                         df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
                         
-                        # MODIFICATION: Ne plus griser, juste afficher le DataFrame tel quel (NA sera affiché)
-                        st.dataframe(df_summary_display_v7, use_container_width=True, hide_index=True)
+                        # MODIFICATION: Appliquer un style pour le retour à la ligne dans la colonne "Précisions"
+                        # et potentiellement ajuster les largeurs de colonnes
+                        column_config = {
+                            "Groupe Taxonomique": st.column_config.TextColumn(width="medium"),
+                            "Quantité": st.column_config.NumberColumn(width="small"),
+                            "Fonction Écologique": st.column_config.TextColumn(width="medium"),
+                            "Précisions": st.column_config.TextColumn(width="large") # Donner plus de place
+                        }
+                        st.dataframe(
+                            df_summary_display_v7, 
+                            use_container_width=True, 
+                            hide_index=True,
+                            column_config=column_config
+                        )
+                        # Pour forcer le retour à la ligne via CSS (plus complexe avec st.dataframe direct)
+                        # On pourrait utiliser st.markdown avec df.to_html() et du CSS injecté
+                        # mais st.dataframe est plus simple pour l'interactivité.
+                        # Le wrapping devrait se faire naturellement si la colonne a une largeur "large"
+                        # et que `use_container_width=True`.
 
                         st.markdown("<br>", unsafe_allow_html=True)
 
@@ -444,7 +460,7 @@ def main():
                             data=csv_to_download_v2,
                             file_name="resume_identifications_arthropodes.csv",
                             mime="text/csv",
-                            key="download_summary_csv_button_tab2_v9", # Nouvelle clé
+                            key="download_summary_csv_button_tab2_v10", # Nouvelle clé
                             use_container_width=True
                         )
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -467,29 +483,33 @@ def main():
                     else:
                         st.caption("Aucune donnée pour l'indice de Shannon.")
 
-                    ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
-                    if ecological_counts_for_pie_chart_final_v7:
-                        st.subheader("Fonctions Écologiques")
-                        labels_pie_keys_final_v7 = list(ecological_counts_for_pie_chart_final_v7.keys())
-                        sizes_pie_values_final_v7 = list(ecological_counts_for_pie_chart_final_v7.values())
-                        colors_map_pie_final_v7 = {"Décomposeurs et Ingénieurs du sol": "#8B4513", "Pollinisateurs": "#FFD700", 
-                                            "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
-                        pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
-                        
-                        # MODIFICATION : Taille du Pie Chart réduite
-                        fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(2.0, 1.5)) # Encore plus petit
-                        ax_pie_final_display_v7.pie(sizes_pie_values_final_v7, labels=None, autopct='%1.0f%%', startangle=90, 
-                                    colors=pie_colors_list_final_v7, pctdistance=0.75, textprops={'fontsize': 5}) # Police encore plus petite
-                        ax_pie_final_display_v7.axis('equal')
-                        legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
-                        
-                        # Ajuster la légende pour qu'elle prenne moins de place
-                        ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='center left', 
-                                                bbox_to_anchor=(1, 0.5), # Légende à droite du graphique
-                                                fontsize='xx-small', frameon=False)
-                        plt.subplots_adjust(right=0.6) # Laisser de la place pour la légende à droite
-                        st.pyplot(fig_pie_final_display_v7)
-                    else: st.write("Aucune fonction écologique à afficher.")
+                    # MODIFICATION: Graphique dans une colonne à gauche, plus petit
+                    col_graph, col_empty_space = st.columns([1, 2]) # Ratio 1:2
+
+                    with col_graph:
+                        ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
+                        if ecological_counts_for_pie_chart_final_v7:
+                            st.subheader("Fonctions Écologiques")
+                            labels_pie_keys_final_v7 = list(ecological_counts_for_pie_chart_final_v7.keys())
+                            sizes_pie_values_final_v7 = list(ecological_counts_for_pie_chart_final_v7.values())
+                            colors_map_pie_final_v7 = {"Décomposeurs et Ingénieurs du sol": "#8B4513", "Pollinisateurs": "#FFD700", 
+                                                "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
+                            pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
+                            
+                            # Taille du Pie Chart encore plus réduite
+                            fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(1.8, 1.35)) # Environ moitié de la précédente
+                            ax_pie_final_display_v7.pie(sizes_pie_values_final_v7, labels=None, autopct='%1.0f%%', startangle=90, 
+                                        colors=pie_colors_list_final_v7, pctdistance=0.7, textprops={'fontsize': 4}) # Police très petite
+                            ax_pie_final_display_v7.axis('equal')
+                            legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
+                            
+                            ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='center left', 
+                                                    bbox_to_anchor=(1.05, 0.5), # Légende juste à droite du graphique
+                                                    fontsize='xx-small', frameon=False)
+                            # Ajuster pour que la légende ne soit pas coupée
+                            plt.subplots_adjust(right=0.55, left=0.05) # Plus d'espace à droite, moins à gauche
+                            st.pyplot(fig_pie_final_display_v7)
+                        else: st.write("Aucune fonction écologique à afficher.")
             
             st.markdown("--- \n ### Identification Détaillée par Image")
             for idx_detail_tab2_disp_final_v7, img_data_item_detail_id_tab2_disp_final_v7 in enumerate(imgs_processed_tab2_an_list_v7):
