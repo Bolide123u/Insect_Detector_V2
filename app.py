@@ -414,7 +414,9 @@ def main():
                         raw_label_counts_display_v7[lbl_disp_v7] = raw_label_counts_display_v7.get(lbl_disp_v7, 0) + 1
                     
                     summary_data_display_v7 = []
-                    for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
+                    # The initial loop to build summary_data_display_v7 can remain sorted by count, or unsorted.
+                    # The crucial sort will happen on the DataFrame itself.
+                    for label_name_disp_v7, count_disp_v7 in raw_label_counts_display_v7.items(): # No longer sorting here for the list construction
                         display_label_name_val_v7 = "Araneae et Opiliones" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
                         eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
                         precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION)
@@ -425,8 +427,13 @@ def main():
                             "Fonction Écologique": eco_func_disp_v7,
                             "Précisions": precision_disp_v7
                         })
+
                     if summary_data_display_v7:
                         df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
+                        
+                        # MODIFICATION: Sort the DataFrame by "Groupe Taxonomique" alphabetically
+                        df_summary_display_v7 = df_summary_display_v7.sort_values(by="Groupe Taxonomique", ascending=True)
+                        # END MODIFICATION
                         
                         table_styles = [
                             {'selector': 'th', 
@@ -455,7 +462,7 @@ def main():
                         def convert_df_to_csv_v2(df):
                             return df.to_csv(index=False).encode('utf-8')
 
-                        csv_to_download_v2 = convert_df_to_csv_v2(df_summary_display_v7)
+                        csv_to_download_v2 = convert_df_to_csv_v2(df_summary_display_v7) # This will now use the sorted DataFrame
                         st.download_button(
                             label="📥 Télécharger le résumé (CSV)",
                             data=csv_to_download_v2,
@@ -468,8 +475,15 @@ def main():
                     else:
                         st.write("Aucune donnée pour le tableau récapitulatif.")
 
+                    # The rest of the Tab 2 (Shannon index, Pie chart, Detailed ID) remains unchanged
+                    # as their calculations depend on aggregate counts, not the display order of the summary table.
                     ecological_counts_for_shannon_calc_v7 = {}
-                    for data_row_shannon_v7 in summary_data_display_v7:
+                    # Note: The creation of summary_data_display_v7 now doesn't inherently sort by count.
+                    # If a specific order was desired for ecological_counts_for_shannon_calc_v7,
+                    # it would need to be handled when iterating for its creation,
+                    # or by sorting `df_summary_display_v7` *before* this loop if it depended on that order.
+                    # However, for sum of counts per function, the order of rows in df_summary_display_v7 doesn't matter.
+                    for data_row_shannon_v7 in df_summary_display_v7.to_dict('records'): # Iterate over the sorted DataFrame's rows
                         func_shannon_v7 = data_row_shannon_v7["Fonction Écologique"]
                         ecological_counts_for_shannon_calc_v7[func_shannon_v7] = ecological_counts_for_shannon_calc_v7.get(func_shannon_v7, 0) + data_row_shannon_v7["Quantité"]
                     
@@ -486,8 +500,7 @@ def main():
                     
                     st.markdown("---") # Séparateur avant le graphique
                     
-                    # MODIFICATION: Graphique dans une colonne à gauche, plus petit
-                    col_graph_container, col_graph_empty = st.columns([1, 2]) # Graphique prend 1/3 de la largeur
+                    col_graph_container, col_graph_empty = st.columns([1, 2]) 
 
                     with col_graph_container:
                         ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
@@ -499,41 +512,34 @@ def main():
                                                 "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
                             pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
                             
-                            # Ajustement de la taille du graphique et des polices
-                            # figsize: (largeur, hauteur) en pouces. DPI par défaut de matplotlib est souvent 100.
-                            # Une largeur de 2.5 pouces donnera environ 250 pixels.
                             fig_width = 2.5 
-                            fig_height = fig_width * 0.8 # Maintenir un ratio pour la hauteur
+                            fig_height = fig_width * 0.8 
                             
                             fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(fig_width, fig_height))
                             
                             wedges, texts, autotexts = ax_pie_final_display_v7.pie(
                                 sizes_pie_values_final_v7, 
-                                autopct='%1.0f%%', # Format des pourcentages
+                                autopct='%1.0f%%', 
                                 startangle=90, 
                                 colors=pie_colors_list_final_v7, 
-                                pctdistance=0.7,  # Distance des pourcentages par rapport au centre
-                                radius=1.0        # Rayon du camembert
+                                pctdistance=0.7, 
+                                radius=1.0        
                             )
                             
-                            # Ajuster la taille de la police des pourcentages
                             for autotext in autotexts:
-                                autotext.set_fontsize(6) # Police petite pour les pourcentages
+                                autotext.set_fontsize(6) 
 
-                            ax_pie_final_display_v7.axis('equal') # Assure que le camembert est un cercle
+                            ax_pie_final_display_v7.axis('equal') 
                             
                             legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
                             
-                            # Légende à droite du graphique, avec taille de police ajustée
                             ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='center left', 
-                                                    bbox_to_anchor=(1.05, 0.5), # Positionner la légende à droite
-                                                    fontsize=6, frameon=False) # Taille de police pour la légende
+                                                    bbox_to_anchor=(1.05, 0.5), 
+                                                    fontsize=6, frameon=False) 
                             
-                            # Ajuster les marges de la figure pour que la légende ne soit pas coupée
-                            # plt.tight_layout() peut parfois aider, mais ici on ajuste manuellement
-                            plt.subplots_adjust(left=0.05, right=0.70, top=0.95, bottom=0.05) # Donner de l'espace à droite pour la légende
+                            plt.subplots_adjust(left=0.05, right=0.70, top=0.95, bottom=0.05) 
                                                         
-                            st.pyplot(fig_pie_final_display_v7, use_container_width=False) # Important: use_container_width=False
+                            st.pyplot(fig_pie_final_display_v7, use_container_width=False) 
                         else: st.write("Aucune fonction écologique à afficher.")
             
             st.markdown("--- \n ### Identification Détaillée par Image")
