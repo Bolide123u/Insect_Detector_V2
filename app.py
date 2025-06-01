@@ -23,7 +23,7 @@ ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
     "Isopoda": "Décomposeurs et Ingénieurs du sol",
     "Carabidae": "Ennemis naturels",
-    "Araneae et Opiliones": "Ennemis naturels",
+    "Opiliones et Araneae": "Ennemis naturels",
     "Anthomyiidae": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
@@ -31,7 +31,7 @@ DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 ECOLOGICAL_PRECISIONS_MAP = {
     "Carabidae": "Quelques espèces consomment des graines d'adventices, voire de semences agricoles (très marginal, impact très faible)",
     "Isopoda": "Consommation des jeunes pousses (rare et impact très faible)",
-    "Araneae et Opiliones": "Les opilions sont également des décomposeurs de la matière organique"
+    "Opiliones et Araneae": "Les opilions sont également des décomposeurs de la matière organique"
 }
 DEFAULT_PRECISION = "NA" 
 
@@ -415,7 +415,7 @@ def main():
                     
                     summary_data_display_v7 = []
                     for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
-                        display_label_name_val_v7 = "Araneae et Opiliones" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
+                        display_label_name_val_v7 = "Opiliones et Araneae" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
                         eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
                         precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION)
                         
@@ -428,13 +428,11 @@ def main():
                     if summary_data_display_v7:
                         df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
                         
-                        # MODIFICATION: Appliquer un style pour le retour à la ligne dans la colonne "Précisions"
-                        # et potentiellement ajuster les largeurs de colonnes
                         column_config = {
                             "Groupe Taxonomique": st.column_config.TextColumn(width="medium"),
                             "Quantité": st.column_config.NumberColumn(width="small"),
                             "Fonction Écologique": st.column_config.TextColumn(width="medium"),
-                            "Précisions": st.column_config.TextColumn(width="large") # Donner plus de place
+                            "Précisions": st.column_config.TextColumn(width="large")
                         }
                         st.dataframe(
                             df_summary_display_v7, 
@@ -442,12 +440,7 @@ def main():
                             hide_index=True,
                             column_config=column_config
                         )
-                        # Pour forcer le retour à la ligne via CSS (plus complexe avec st.dataframe direct)
-                        # On pourrait utiliser st.markdown avec df.to_html() et du CSS injecté
-                        # mais st.dataframe est plus simple pour l'interactivité.
-                        # Le wrapping devrait se faire naturellement si la colonne a une largeur "large"
-                        # et que `use_container_width=True`.
-
+                        
                         st.markdown("<br>", unsafe_allow_html=True)
 
                         @st.cache_data
@@ -460,7 +453,7 @@ def main():
                             data=csv_to_download_v2,
                             file_name="resume_identifications_arthropodes.csv",
                             mime="text/csv",
-                            key="download_summary_csv_button_tab2_v10", # Nouvelle clé
+                            key="download_summary_csv_button_tab2_v11", 
                             use_container_width=True
                         )
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -484,7 +477,7 @@ def main():
                         st.caption("Aucune donnée pour l'indice de Shannon.")
 
                     # MODIFICATION: Graphique dans une colonne à gauche, plus petit
-                    col_graph, col_empty_space = st.columns([1, 2]) # Ratio 1:2
+                    col_graph, col_empty_space = st.columns([1, 2]) 
 
                     with col_graph:
                         ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
@@ -496,18 +489,19 @@ def main():
                                                 "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
                             pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
                             
-                            # Taille du Pie Chart encore plus réduite
-                            fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(1.8, 1.35)) # Environ moitié de la précédente
+                            # Taille du Pie Chart ajustée, avec plus de place pour le camembert lui-même
+                            fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(2.2, 1.8)) # Légèrement plus grand que 1.8x1.35
                             ax_pie_final_display_v7.pie(sizes_pie_values_final_v7, labels=None, autopct='%1.0f%%', startangle=90, 
-                                        colors=pie_colors_list_final_v7, pctdistance=0.7, textprops={'fontsize': 4}) # Police très petite
+                                        colors=pie_colors_list_final_v7, pctdistance=0.65, textprops={'fontsize': 5}) # Pourcentages un peu plus vers l'intérieur
                             ax_pie_final_display_v7.axis('equal')
                             legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
                             
+                            # Légende plus petite et positionnée pour ne pas écraser le camembert
                             ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='center left', 
-                                                    bbox_to_anchor=(1.05, 0.5), # Légende juste à droite du graphique
-                                                    fontsize='xx-small', frameon=False)
-                            # Ajuster pour que la légende ne soit pas coupée
-                            plt.subplots_adjust(right=0.55, left=0.05) # Plus d'espace à droite, moins à gauche
+                                                    bbox_to_anchor=(0.95, 0.5), # Ajuster bbox_to_anchor pour un bon espacement
+                                                    fontsize=6, frameon=False) # fontsize=6 est plus petit que 'xx-small'
+                            # Ajuster les marges de la figure pour que tout soit visible
+                            plt.subplots_adjust(left=0.1, right=0.7, top=0.9, bottom=0.1) # Donner plus de place à droite pour la légende
                             st.pyplot(fig_pie_final_display_v7)
                         else: st.write("Aucune fonction écologique à afficher.")
             
@@ -539,7 +533,7 @@ def main():
                         if "Erreur" in label_detail_id_tab2_val_final_v7:
                             st.error(f"{label_detail_id_tab2_val_final_v7} ({confidence_detail_id_tab2_val_final_v7*100:.2f}%)")
                         else:
-                            label_to_display_detail_val_final_v7 = "Araneae et Opiliones" if label_detail_id_tab2_val_final_v7 == "Arachnides" else label_detail_id_tab2_val_final_v7
+                            label_to_display_detail_val_final_v7 = "Opiliones et Araneae" if label_detail_id_tab2_val_final_v7 == "Arachnides" else label_detail_id_tab2_val_final_v7
                             st.markdown(f"**Label:** {label_to_display_detail_val_final_v7}")
                             st.markdown(f"**Fonction:** {ECOLOGICAL_FUNCTIONS_MAP.get(label_to_display_detail_val_final_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_detail_id_tab2_val_final_v7, DEFAULT_ECOLOGICAL_FUNCTION))}")
                             st.markdown(f"**Confiance:** {confidence_detail_id_tab2_val_final_v7*100:.2f}%")
