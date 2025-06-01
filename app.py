@@ -23,7 +23,7 @@ ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
     "Isopoda": "Décomposeurs et Ingénieurs du sol",
     "Carabidae": "Ennemis naturels",
-    "Opiliones et Araneae": "Ennemis naturels",
+    "Araneae et Opiliones": "Ennemis naturels",
     "Anthomyiidae": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
@@ -31,7 +31,7 @@ DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 ECOLOGICAL_PRECISIONS_MAP = {
     "Carabidae": "Quelques espèces consomment des graines d'adventices, voire de semences agricoles (très marginal, impact très faible)",
     "Isopoda": "Consommation des jeunes pousses (rare et impact très faible)",
-    "Opiliones et Araneae": "Les opilions sont également des décomposeurs de la matière organique"
+    "Araneae et Opiliones": "Les opilions sont également des décomposeurs de la matière organique"
 }
 DEFAULT_PRECISION = "NA" 
 
@@ -415,7 +415,7 @@ def main():
                     
                     summary_data_display_v7 = []
                     for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
-                        display_label_name_val_v7 = "Opiliones et Araneae" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
+                        display_label_name_val_v7 = "Araneae et Opiliones" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
                         eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
                         precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION)
                         
@@ -539,7 +539,7 @@ def main():
                         if "Erreur" in label_detail_id_tab2_val_final_v7:
                             st.error(f"{label_detail_id_tab2_val_final_v7} ({confidence_detail_id_tab2_val_final_v7*100:.2f}%)")
                         else:
-                            label_to_display_detail_val_final_v7 = "Opiliones et Araneae" if label_detail_id_tab2_val_final_v7 == "Arachnides" else label_detail_id_tab2_val_final_v7
+                            label_to_display_detail_val_final_v7 = "Araneae et Opiliones" if label_detail_id_tab2_val_final_v7 == "Arachnides" else label_detail_id_tab2_val_final_v7
                             st.markdown(f"**Label:** {label_to_display_detail_val_final_v7}")
                             st.markdown(f"**Fonction:** {ECOLOGICAL_FUNCTIONS_MAP.get(label_to_display_detail_val_final_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_detail_id_tab2_val_final_v7, DEFAULT_ECOLOGICAL_FUNCTION))}")
                             st.markdown(f"**Confiance:** {confidence_detail_id_tab2_val_final_v7*100:.2f}%")
