@@ -414,9 +414,7 @@ def main():
                         raw_label_counts_display_v7[lbl_disp_v7] = raw_label_counts_display_v7.get(lbl_disp_v7, 0) + 1
                     
                     summary_data_display_v7 = []
-                    # The initial loop to build summary_data_display_v7 can remain sorted by count, or unsorted.
-                    # The crucial sort will happen on the DataFrame itself.
-                    for label_name_disp_v7, count_disp_v7 in raw_label_counts_display_v7.items(): # No longer sorting here for the list construction
+                    for label_name_disp_v7, count_disp_v7 in raw_label_counts_display_v7.items():
                         display_label_name_val_v7 = "Araneae et Opiliones" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
                         eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
                         precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION)
@@ -430,10 +428,7 @@ def main():
 
                     if summary_data_display_v7:
                         df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
-                        
-                        # MODIFICATION: Sort the DataFrame by "Groupe Taxonomique" alphabetically
                         df_summary_display_v7 = df_summary_display_v7.sort_values(by="Groupe Taxonomique", ascending=True)
-                        # END MODIFICATION
                         
                         table_styles = [
                             {'selector': 'th', 
@@ -443,15 +438,21 @@ def main():
                             {'selector': 'td', 
                              'props': [('border', '1px solid #555'), ('padding', '6px'), 
                                        ('text-align', 'left'), ('vertical-align', 'top')]},
+                            # MODIFICATION: Style pour la colonne "Quantité" (2ème colonne)
+                            {'selector': 'th:nth-child(2)', # Cible l'en-tête de la 2ème colonne
+                             'props': [('width', '80px'), ('text-align', 'center')]},
+                            {'selector': 'td:nth-child(2)', # Cible les cellules de la 2ème colonne
+                             'props': [('width', '80px'), ('text-align', 'center')]},
+                            # FIN MODIFICATION
                             {'selector': 'td:nth-child(4)', # Cible la 4ème colonne (Précisions)
                              'props': [('white-space', 'pre-wrap'), ('word-break', 'break-word'), 
-                                       ('min-width', '250px'), ('max-width', '400px')]} # Ajuster min/max width
+                                       ('min-width', '250px')]} # max-width enlevé pour plus de flexibilité
                         ]
                         
                         html_table = (df_summary_display_v7.style
                                       .set_table_styles(table_styles)
                                       .hide(axis="index")
-                                      .set_table_attributes('style="border-collapse: collapse; width:100%; table-layout: fixed;"') # table-layout fixed
+                                      .set_table_attributes('style="border-collapse: collapse; width:100%; table-layout: fixed;"') 
                                       .to_html(escape=False))
                         
                         st.markdown(html_table, unsafe_allow_html=True)
@@ -462,7 +463,7 @@ def main():
                         def convert_df_to_csv_v2(df):
                             return df.to_csv(index=False).encode('utf-8')
 
-                        csv_to_download_v2 = convert_df_to_csv_v2(df_summary_display_v7) # This will now use the sorted DataFrame
+                        csv_to_download_v2 = convert_df_to_csv_v2(df_summary_display_v7)
                         st.download_button(
                             label="📥 Télécharger le résumé (CSV)",
                             data=csv_to_download_v2,
@@ -475,15 +476,8 @@ def main():
                     else:
                         st.write("Aucune donnée pour le tableau récapitulatif.")
 
-                    # The rest of the Tab 2 (Shannon index, Pie chart, Detailed ID) remains unchanged
-                    # as their calculations depend on aggregate counts, not the display order of the summary table.
                     ecological_counts_for_shannon_calc_v7 = {}
-                    # Note: The creation of summary_data_display_v7 now doesn't inherently sort by count.
-                    # If a specific order was desired for ecological_counts_for_shannon_calc_v7,
-                    # it would need to be handled when iterating for its creation,
-                    # or by sorting `df_summary_display_v7` *before* this loop if it depended on that order.
-                    # However, for sum of counts per function, the order of rows in df_summary_display_v7 doesn't matter.
-                    for data_row_shannon_v7 in df_summary_display_v7.to_dict('records'): # Iterate over the sorted DataFrame's rows
+                    for data_row_shannon_v7 in df_summary_display_v7.to_dict('records'):
                         func_shannon_v7 = data_row_shannon_v7["Fonction Écologique"]
                         ecological_counts_for_shannon_calc_v7[func_shannon_v7] = ecological_counts_for_shannon_calc_v7.get(func_shannon_v7, 0) + data_row_shannon_v7["Quantité"]
                     
@@ -498,7 +492,7 @@ def main():
                     else:
                         st.caption("Aucune donnée pour l'indice de Shannon.")
                     
-                    st.markdown("---") # Séparateur avant le graphique
+                    st.markdown("---") 
                     
                     col_graph_container, col_graph_empty = st.columns([1, 2]) 
 
