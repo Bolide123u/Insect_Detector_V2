@@ -21,11 +21,11 @@ MODEL_INPUT_SIZE = (224, 224)
 
 ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
-    "Isopodes": "Décomposeurs et Ingénieurs du sol",
-    "Carabide": "Prédateurs", 
+    "Isopoda": "Décomposeurs et Ingénieurs du sol",
+    "Carabidae": "Prédateurs", 
     "Carabidae": "Prédateurs", 
     "Opiliones et Araneae": "Prédateurs",
-    "Mouches des semis": "Ravageur"
+    "Anthomyiidae": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 
@@ -36,7 +36,7 @@ DEFAULT_SEG_PARAMS = {
     "min_circularity": 0.3, "apply_relative_filter": True
 }
 
-LATIN_TERMS_FOR_ITALICS = ["Apidae", "Isopodes", "Carabide", "Opiliones", "Araneae", "Carabidae", "Andrenidae"]
+LATIN_TERMS_FOR_ITALICS = ["Apidae", "Isopoda", "Carabidae", "Opiliones", "Araneae", "Carabidae", "Andrenidae"]
 
 
 # --- Fonctions Utilitaires ---
@@ -617,7 +617,7 @@ def main():
     st.markdown("---")
     ps_text = """
     **PS :** Quelques espèces de Carabidae (carabes) consomment des graines d'adventices, voire de semences agricoles (très marginalement). 
-    Les Isopodes peuvent aussi consommer de jeunes pousses (rare et faible impact).
+    Les Isopoda peuvent aussi consommer de jeunes pousses (rare et faible impact).
     En cas de photos d'arthropodes en dehors des classes définies par le modèle, l'outil renverra la classe qu'il considère comme étant la plus proche visuellement. 
     Ainsi, une photo d'Andrenidae pourrait être classée comme Apidae, bien que le modèle ait été entraîné sur des photos d'Apidae.
     """
