@@ -19,18 +19,24 @@ SAVED_MODEL_DIR_PATH = "model.savedmodel"
 LABELS_PATH = "labels.txt"
 MODEL_INPUT_SIZE = (224, 224)
 
-# MODIFICATIONS Terminologie et Labels
 ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
     "Isopoda": "Décomposeurs et Ingénieurs du sol",
-    "Carabidae": "Ennemis naturels", # MODIFIÉ
-    "Opiliones et Araneae": "Ennemis naturels", # MODIFIÉ
+    "Carabidae": "Ennemis naturels",
+    "Opiliones et Araneae": "Ennemis naturels",
     "Anthomyiidae": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 
+# NOUVEAU: Dictionnaire pour les précisions
+ECOLOGICAL_PRECISIONS_MAP = {
+    "Carabidae": "Quelques espèces consomment des graines d'adventices, voire de semences agricoles (très marginal, impact très faible)",
+    "Isopoda": "Consommation des jeunes pousses (rare et impact très faible)",
+    "Opiliones et Araneae": "Les opilions sont également des décomposeurs de la matière organique"
+}
+DEFAULT_PRECISION = "" # Vide si pas de précision
+
 DEFAULT_SEG_PARAMS = {
-    # "target_insect_count": 1, # Plus utilisé car pas d'auto-tune
     "blur_kernel": 5, "adapt_block_size": 35, "adapt_c": 5, "min_area": 150,
     "morph_kernel": 3, "morph_iterations": 2, "margin": 15, "use_circularity": False,
     "min_circularity": 0.3, "apply_relative_filter": True
@@ -211,22 +217,16 @@ def create_label_display_image(label_image_data, filtered_props):
                 label_display[coord[0], coord[1]] = color
     return label_display
 
-# MODIFICATION: Fonction pour gérer le callback des widgets de la sidebar
 def sidebar_param_changed():
-    """Appelé quand un paramètre de la sidebar est modifié."""
     if 'active_image_id_for_params' in st.session_state and st.session_state.active_image_id_for_params is not None:
         active_id = st.session_state.active_image_id_for_params
         try:
             active_img_data = next(item for item in st.session_state.image_data_list if item["id"] == active_id)
-            
-            # Récupérer les nouvelles valeurs des widgets (qui sont déjà dans active_img_data["params"] grâce aux clés)
-            # Et retraiter l'image
             with st.spinner(f"Mise à jour et retraitement de {active_img_data['filename']}..."):
                 active_img_data["processed_data"] = process_image(active_img_data["cv_image"], active_img_data["params"])
                 active_img_data["is_processed"] = True
-            # st.rerun() # Le rerun est implicite avec les widgets on_change, mais on peut le forcer si besoin
         except StopIteration:
-            pass # L'image active n'existe plus
+            pass
 
 def main():
     st.set_page_config(layout="wide")
@@ -245,11 +245,9 @@ def main():
             if class_names_loaded:
                 st.session_state.class_names_list = class_names_loaded
                 if not st.session_state.first_model_load_message_displayed:
-                    # Le message s'affichera une fois dans la sidebar si elle est déjà rendue,
-                    # ou au prochain rendu de la sidebar.
                     st.session_state.first_model_load_message_content = "Modèle et labels chargés !"
                     st.session_state.first_model_load_message_type = "success"
-                    st.session_state.first_model_load_message_displayed = True # Marquer comme affiché (ou à afficher)
+                    st.session_state.first_model_load_message_displayed = True
             else: 
                 st.session_state.first_model_load_message_content = "Modèle chargé, mais échec du chargement des labels."
                 st.session_state.first_model_load_message_type = "warning"
@@ -260,13 +258,12 @@ def main():
 
     with st.sidebar:
         st.header("Paramètres de Segmentation")
-        # Afficher le message de chargement du modèle ici
         if 'first_model_load_message_content' in st.session_state and st.session_state.first_model_load_message_content:
             if st.session_state.first_model_load_message_type == "success":
                 st.success(st.session_state.first_model_load_message_content)
             else:
                 st.warning(st.session_state.first_model_load_message_content)
-            del st.session_state.first_model_load_message_content # Pour ne l'afficher qu'une fois
+            del st.session_state.first_model_load_message_content
 
         active_id_sidebar = st.session_state.active_image_id_for_params
         active_img_data_sb = None
@@ -279,22 +276,17 @@ def main():
         if active_img_data_sb:
             st.markdown(f"**Pour : {active_img_data_sb['filename']}**")
             params_sb_ref = active_img_data_sb["params"]
-            
-            # Utiliser on_change pour déclencher le retraitement
             params_sb_ref["blur_kernel"]=st.slider("Flou (0=aucun)",0,21,params_sb_ref["blur_kernel"],1,key=f"sb_blur_{active_id_sidebar}", on_change=sidebar_param_changed)
             params_sb_ref["adapt_block_size"]=st.slider("Bloc Adapt.",3,51,params_sb_ref["adapt_block_size"],2,key=f"sb_block_{active_id_sidebar}", on_change=sidebar_param_changed)
             params_sb_ref["adapt_c"]=st.slider("Constante C",-20,20,params_sb_ref["adapt_c"],1,key=f"sb_c_{active_id_sidebar}", on_change=sidebar_param_changed)
             params_sb_ref["min_area"]=st.slider("Aire Min",10,10000,params_sb_ref["min_area"],10,key=f"sb_area_{active_id_sidebar}", on_change=sidebar_param_changed)
             params_sb_ref["morph_kernel"]=st.slider("Noyau Morpho",1,15,params_sb_ref["morph_kernel"],2,key=f"sb_morph_k_{active_id_sidebar}", on_change=sidebar_param_changed)
             params_sb_ref["morph_iterations"]=st.slider("It. Morpho",1,5,params_sb_ref["morph_iterations"],1,key=f"sb_morph_i_{active_id_sidebar}", on_change=sidebar_param_changed)
-            params_sb_ref["margin"]=st.slider("Marge Ext.",0,50,params_sb_ref["margin"],key=f"sb_margin_{active_id_sidebar}", on_change=sidebar_param_changed) # La marge affecte l'extraction, pas process_image directement
+            params_sb_ref["margin"]=st.slider("Marge Ext.",0,50,params_sb_ref["margin"],key=f"sb_margin_{active_id_sidebar}", on_change=sidebar_param_changed)
             params_sb_ref["use_circularity"]=st.checkbox("Filtre Circ.",params_sb_ref["use_circularity"],key=f"sb_circ_c_{active_id_sidebar}", on_change=sidebar_param_changed)
             if params_sb_ref["use_circularity"]:
                 params_sb_ref["min_circularity"]=st.slider("Circ. Min Val",0.0,1.0,params_sb_ref["min_circularity"],0.05,key=f"sb_circ_v_{active_id_sidebar}", on_change=sidebar_param_changed)
             params_sb_ref["apply_relative_filter"]=st.checkbox("Filtre Relatif",params_sb_ref["apply_relative_filter"],key=f"sb_rel_f_{active_id_sidebar}", on_change=sidebar_param_changed)
-
-            # Le bouton "Appliquer" n'est plus nécessaire car on_change s'en charge
-            # if st.button("Appliquer & Traiter Image Active", key=f"sb_apply_btn_v6_{active_id_sidebar}"): ...
         else:
             st.info("Sélectionnez une image (bouton '⚙️ Configurer') pour ajuster ses paramètres ici.")
 
@@ -335,11 +327,11 @@ def main():
             st.session_state.image_data_list = updated_list_session_tab1_v7
             
             if files_changed_in_session_tab1_v7:
-                if newly_added_ids: # Si de nouvelles images ont été ajoutées
-                    st.session_state.active_image_id_for_params = newly_added_ids[0] # Activer la première nouvelle image
-                elif st.session_state.image_data_list: # Sinon, si la liste n'est pas vide, activer la première
+                if newly_added_ids:
+                    st.session_state.active_image_id_for_params = newly_added_ids[0]
+                elif st.session_state.image_data_list:
                     st.session_state.active_image_id_for_params = st.session_state.image_data_list[0]["id"]
-                else: # Si la liste est vide
+                else:
                     st.session_state.active_image_id_for_params = None
                 st.rerun()
 
@@ -366,14 +358,9 @@ def main():
         for idx_main_tab1_disp_v7, img_data_main_tab1_disp_v7 in enumerate(st.session_state.image_data_list):
             st.markdown(f"--- \n ### Image {idx_main_tab1_disp_v7 + 1}: {img_data_main_tab1_disp_v7['filename']}")
             select_btn_key_main_tab1_disp_v7 = f"select_cfg_btn_main_tab1_disp_v7_{img_data_main_tab1_disp_v7['id']}"
-            
-            # MODIFICATION: Taille d'affichage des images réduite dans les colonnes
-            cols_img_display_item_tab1_v7 = st.columns(3) # Originale, Morpho, Labels
+            cols_img_display_item_tab1_v7 = st.columns(3)
             
             with cols_img_display_item_tab1_v7[0]:
-                # Pour contrôler la taille, on peut utiliser `width` ou `use_column_width` si la colonne est déjà dimensionnée.
-                # Si les colonnes sont de taille égale, `use_column_width` est bien.
-                # Sinon, on peut spécifier une largeur fixe, ex: `width=300`
                 st.image(cv2.cvtColor(img_data_main_tab1_disp_v7["cv_image"], cv2.COLOR_BGR2RGB), caption="Originale", use_column_width=True)
             
             if img_data_main_tab1_disp_v7["is_processed"] and img_data_main_tab1_disp_v7["processed_data"]:
@@ -388,7 +375,6 @@ def main():
                 with cols_img_display_item_tab1_v7[1]: st.caption("Attente morpho.")
                 with cols_img_display_item_tab1_v7[2]: st.caption("Attente labels.")
 
-            # Bouton "Configurer" reste sous les images
             if st.button(f"⚙️ Configurer {img_data_main_tab1_disp_v7['filename']}", key=select_btn_key_main_tab1_disp_v7, help=f"Éditer les paramètres pour {img_data_main_tab1_disp_v7['filename']}", use_container_width=True):
                 st.session_state.active_image_id_for_params = img_data_main_tab1_disp_v7["id"]
                 st.rerun()
@@ -423,68 +409,101 @@ def main():
                 
                 if not all_labels_pie_tab2_an_list_v7: st.warning("Aucun arthropode n'a pu être identifié.")
                 else:
-                    col_table_summary_display_v7, col_pie_chart_display_final_v7 = st.columns([2, 1]) # Ratio pour tableau à gauche
+                    # MODIFICATION: Suppression des colonnes, le graphique sera en dessous
+                    # col_table_summary_display_v7, col_pie_chart_display_final_v7 = st.columns([2, 1])
 
-                    with col_table_summary_display_v7:
-                        st.subheader("Résumé des Identifications")
-                        raw_label_counts_display_v7 = {}
-                        for lbl_disp_v7 in all_labels_pie_tab2_an_list_v7:
-                            raw_label_counts_display_v7[lbl_disp_v7] = raw_label_counts_display_v7.get(lbl_disp_v7, 0) + 1
+                    # with col_table_summary_display_v7: # Plus besoin de cette colonne spécifique
+                    st.subheader("Résumé des Identifications")
+                    raw_label_counts_display_v7 = {}
+                    for lbl_disp_v7 in all_labels_pie_tab2_an_list_v7:
+                        raw_label_counts_display_v7[lbl_disp_v7] = raw_label_counts_display_v7.get(lbl_disp_v7, 0) + 1
+                    
+                    summary_data_display_v7 = []
+                    for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
+                        display_label_name_val_v7 = "Opiliones et Araneae" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
+                        eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
+                        # MODIFICATION: Ajout de la précision
+                        precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION)
                         
-                        summary_data_display_v7 = []
-                        for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
-                            display_label_name_val_v7 = "Opiliones et Araneae" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
-                            eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
-                            summary_data_display_v7.append({
-                                "Groupe Taxonomique": display_label_name_val_v7,
-                                "Quantité": count_disp_v7,
-                                "Fonction Écologique": eco_func_disp_v7
-                            })
-                        if summary_data_display_v7:
-                            df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
-                            # MODIFICATION: Affichage du DataFrame sans HTML, avec hide_index
-                            st.dataframe(df_summary_display_v7, use_container_width=True, hide_index=True)
-                        else:
-                            st.write("Aucune donnée pour le tableau récapitulatif.")
-
-                        ecological_counts_for_shannon_calc_v7 = {}
-                        for data_row_shannon_v7 in summary_data_display_v7:
-                            func_shannon_v7 = data_row_shannon_v7["Fonction Écologique"]
-                            ecological_counts_for_shannon_calc_v7[func_shannon_v7] = ecological_counts_for_shannon_calc_v7.get(func_shannon_v7, 0) + data_row_shannon_v7["Quantité"]
+                        summary_data_display_v7.append({
+                            "Groupe Taxonomique": display_label_name_val_v7,
+                            "Quantité": count_disp_v7,
+                            "Fonction Écologique": eco_func_disp_v7,
+                            "Précisions": precision_disp_v7 # Nouvelle colonne
+                        })
+                    if summary_data_display_v7:
+                        df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
                         
-                        if ecological_counts_for_shannon_calc_v7:
-                            shannon_val_display_v7 = calculate_shannon_index(ecological_counts_for_shannon_calc_v7)
-                            st.metric(label="Indice de Shannon Fonctionnel Global (H')", value=f"{shannon_val_display_v7:.3f}")
-                            if shannon_val_display_v7 == 0 and sum(ecological_counts_for_shannon_calc_v7.values()) > 0:
-                                st.caption("H'=0: une seule fonction écologique présente.")
-                            elif shannon_val_display_v7 > 0:
-                                max_s_disp_v7 = math.log(len(ecological_counts_for_shannon_calc_v7)) if len(ecological_counts_for_shannon_calc_v7) > 0 else 0
-                                st.caption(f"Max H' pour {len(ecological_counts_for_shannon_calc_v7)} fonctions: {max_s_disp_v7:.3f}.")
-                        else:
-                            st.caption("Aucune donnée pour l'indice de Shannon.")
+                        # MODIFICATION: Style pour griser les cellules "Précisions" vides
+                        def style_precision_column(val):
+                            if val == DEFAULT_PRECISION: # Si c'est la valeur par défaut (vide)
+                                return 'background-color: #f0f0f0; color: #a0a0a0; font-style: italic;' # Style grisé
+                            return ''
 
-                    with col_pie_chart_display_final_v7:
-                        ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
-                        if ecological_counts_for_pie_chart_final_v7:
-                            st.subheader("Fonctions Écologiques")
-                            labels_pie_keys_final_v7 = list(ecological_counts_for_pie_chart_final_v7.keys())
-                            sizes_pie_values_final_v7 = list(ecological_counts_for_pie_chart_final_v7.values())
-                            colors_map_pie_final_v7 = {"Décomposeurs et Ingénieurs du sol": "#8B4513", "Pollinisateurs": "#FFD700", 
-                                              "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"} # MODIFIÉ
-                            pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
-                            
-                            # MODIFICATION : Taille du Pie Chart (ex: 3.0 x 2.1) -> (3.0 x 2.5) pour un peu plus de hauteur
-                            fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(3.0, 2.5)) 
-                            ax_pie_final_display_v7.pie(sizes_pie_values_final_v7, labels=None, autopct='%1.0f%%', startangle=90, 
-                                       colors=pie_colors_list_final_v7, pctdistance=0.8, textprops={'fontsize': 6}) # Police un peu plus grande
-                            ax_pie_final_display_v7.axis('equal')
-                            legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
-                            ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='upper center', 
-                                                    bbox_to_anchor=(0.5, -0.02), ncol=max(1, len(labels_pie_keys_final_v7)//2), 
-                                                    fontsize='xx-small', frameon=False)
-                            plt.subplots_adjust(bottom=0.2 if len(labels_pie_keys_final_v7)>2 else 0.1) # Ajuster pour légende
-                            st.pyplot(fig_pie_final_display_v7)
-                        else: st.write("Aucune fonction écologique à afficher.")
+                        # Appliquer le style
+                        styler_df = df_summary_display_v7.style.applymap(style_precision_column, subset=['Précisions'])
+                        st.dataframe(styler_df, use_container_width=True, hide_index=True)
+
+                        st.markdown("<br>", unsafe_allow_html=True) # Espace avant le bouton de téléchargement
+
+                        # Bouton de téléchargement (déjà présent, juste s'assurer qu'il est bien placé)
+                        @st.cache_data # Utiliser st.cache_data pour les fonctions de conversion de données
+                        def convert_df_to_csv_v2(df):
+                            return df.to_csv(index=False).encode('utf-8')
+
+                        csv_to_download_v2 = convert_df_to_csv_v2(df_summary_display_v7)
+                        st.download_button(
+                            label="📥 Télécharger le résumé (CSV)",
+                            data=csv_to_download_v2,
+                            file_name="resume_identifications_arthropodes.csv",
+                            mime="text/csv",
+                            key="download_summary_csv_button_tab2_v8",
+                            use_container_width=True
+                        )
+                        st.markdown("<br>", unsafe_allow_html=True)
+
+
+                    else:
+                        st.write("Aucune donnée pour le tableau récapitulatif.")
+
+                    ecological_counts_for_shannon_calc_v7 = {}
+                    for data_row_shannon_v7 in summary_data_display_v7:
+                        func_shannon_v7 = data_row_shannon_v7["Fonction Écologique"]
+                        ecological_counts_for_shannon_calc_v7[func_shannon_v7] = ecological_counts_for_shannon_calc_v7.get(func_shannon_v7, 0) + data_row_shannon_v7["Quantité"]
+                    
+                    if ecological_counts_for_shannon_calc_v7:
+                        shannon_val_display_v7 = calculate_shannon_index(ecological_counts_for_shannon_calc_v7)
+                        st.metric(label="Indice de Shannon Fonctionnel Global (H')", value=f"{shannon_val_display_v7:.3f}")
+                        if shannon_val_display_v7 == 0 and sum(ecological_counts_for_shannon_calc_v7.values()) > 0:
+                            st.caption("H'=0: une seule fonction écologique présente.")
+                        elif shannon_val_display_v7 > 0:
+                            max_s_disp_v7 = math.log(len(ecological_counts_for_shannon_calc_v7)) if len(ecological_counts_for_shannon_calc_v7) > 0 else 0
+                            st.caption(f"Max H' pour {len(ecological_counts_for_shannon_calc_v7)} fonctions: {max_s_disp_v7:.3f}.")
+                    else:
+                        st.caption("Aucune donnée pour l'indice de Shannon.")
+
+                    # MODIFICATION: Graphique en camembert après le tableau et l'indice de Shannon
+                    # with col_pie_chart_display_final_v7: # Plus besoin de cette colonne spécifique
+                    ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
+                    if ecological_counts_for_pie_chart_final_v7:
+                        st.subheader("Fonctions Écologiques")
+                        labels_pie_keys_final_v7 = list(ecological_counts_for_pie_chart_final_v7.keys())
+                        sizes_pie_values_final_v7 = list(ecological_counts_for_pie_chart_final_v7.values())
+                        colors_map_pie_final_v7 = {"Décomposeurs et Ingénieurs du sol": "#8B4513", "Pollinisateurs": "#FFD700", 
+                                            "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
+                        pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
+                        
+                        fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(3.0, 2.5)) 
+                        ax_pie_final_display_v7.pie(sizes_pie_values_final_v7, labels=None, autopct='%1.0f%%', startangle=90, 
+                                    colors=pie_colors_list_final_v7, pctdistance=0.8, textprops={'fontsize': 6})
+                        ax_pie_final_display_v7.axis('equal')
+                        legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
+                        ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='upper center', 
+                                                bbox_to_anchor=(0.5, -0.02), ncol=max(1, len(labels_pie_keys_final_v7)//2), 
+                                                fontsize='xx-small', frameon=False)
+                        plt.subplots_adjust(bottom=0.2 if len(labels_pie_keys_final_v7)>2 else 0.1)
+                        st.pyplot(fig_pie_final_display_v7)
+                    else: st.write("Aucune fonction écologique à afficher.")
             
             st.markdown("--- \n ### Identification Détaillée par Image")
             for idx_detail_tab2_disp_final_v7, img_data_item_detail_id_tab2_disp_final_v7 in enumerate(imgs_processed_tab2_an_list_v7):
@@ -532,7 +551,7 @@ def main():
         """)
         st.subheader("Analyse Globale (Onglet 2)")
         st.write("""
-        Affiche un tableau récapitulatif des identifications, un graphique des fonctions écologiques, l'Indice de Shannon, et l'identification détaillée.
+        Affiche un tableau récapitulatif des identifications avec des précisions écologiques par taxon, un graphique des fonctions écologiques, l'Indice de Shannon, et l'identification détaillée.
         """)
 
     st.markdown("---")
@@ -542,7 +561,7 @@ def main():
     Les *Opiliones* rendent également des services de décomposition des cadavres d'arthropodes.
     En cas de photos d'arthropodes en dehors des classes définies par le modèle, l'outil renverra la classe qu'il considère comme étant la plus proche visuellement. 
     Ainsi, une photo d'*Andrenidae* pourrait être classée comme *Apidae*, bien que le modèle ait été entraîné sur des photos d'*Apidae*.
-    """) # Termes latins en italique manuellement pour le texte du bas
+    """)
 
 
 if __name__ == "__main__":
