@@ -23,7 +23,7 @@ ECOLOGICAL_FUNCTIONS_MAP = {
     "Apidae": "Pollinisateurs",
     "Isopoda": "Décomposeurs et Ingénieurs du sol",
     "Carabidae": "Ennemis naturels",
-    "Araneae et Opiliones": "Ennemis naturels", # Clé mise à jour pour correspondre à la sortie du modèle
+    "Araneae et Opiliones": "Ennemis naturels",
     "Anthomyiidae": "Ravageur"
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
@@ -31,7 +31,7 @@ DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 ECOLOGICAL_PRECISIONS_MAP = {
     "Carabidae": "Quelques espèces consomment des graines d'adventices, voire de semences agricoles (très marginal, impact très faible)",
     "Isopoda": "Consommation des jeunes pousses (rare et impact très faible)",
-    "Araneae et Opiliones": "Les opilions sont également des décomposeurs de la matière organique" # Clé mise à jour
+    "Araneae et Opiliones": "Les opilions sont également des décomposeurs de la matière organique"
 }
 DEFAULT_PRECISION = "NA" 
 
@@ -415,11 +415,9 @@ def main():
                     
                     summary_data_display_v7 = []
                     for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
-                        # Correction pour la clé 'Arachnides' qui devient 'Araneae et Opiliones' pour l'affichage
                         display_label_name_val_v7 = "Araneae et Opiliones" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
-                        
                         eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
-                        precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION) # Utiliser display_label_name_val_v7 ici aussi
+                        precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION)
                         
                         summary_data_display_v7.append({
                             "Groupe Taxonomique": display_label_name_val_v7,
@@ -430,7 +428,6 @@ def main():
                     if summary_data_display_v7:
                         df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
                         
-                        # MODIFICATION: Style CSS pour le tableau HTML
                         table_styles = [
                             {'selector': 'th', 
                              'props': [('border', '1px solid #555'), ('padding', '8px'), 
@@ -439,21 +436,15 @@ def main():
                             {'selector': 'td', 
                              'props': [('border', '1px solid #555'), ('padding', '6px'), 
                                        ('text-align', 'left'), ('vertical-align', 'top')]},
-                            {'selector': 'td:nth-child(1)', # Groupe Taxonomique
-                             'props': [('width', '25%')]},
-                            {'selector': 'td:nth-child(2)', # Quantité (MODIFIÉ)
-                             'props': [('width', '10%'), ('text-align', 'center')]}, # Largeur réduite et centré
-                            {'selector': 'td:nth-child(3)', # Fonction Écologique
-                             'props': [('width', '25%')]},
-                            {'selector': 'td:nth-child(4)', # Précisions
+                            {'selector': 'td:nth-child(4)', # Cible la 4ème colonne (Précisions)
                              'props': [('white-space', 'pre-wrap'), ('word-break', 'break-word'), 
-                                       ('width', '40%')]} # Le reste de la largeur
+                                       ('min-width', '250px'), ('max-width', '400px')]} # Ajuster min/max width
                         ]
                         
                         html_table = (df_summary_display_v7.style
                                       .set_table_styles(table_styles)
                                       .hide(axis="index")
-                                      .set_table_attributes('style="border-collapse: collapse; width:100%; table-layout: fixed;"')
+                                      .set_table_attributes('style="border-collapse: collapse; width:100%; table-layout: fixed;"') # table-layout fixed
                                       .to_html(escape=False))
                         
                         st.markdown(html_table, unsafe_allow_html=True)
@@ -470,7 +461,7 @@ def main():
                             data=csv_to_download_v2,
                             file_name="resume_identifications_arthropodes.csv",
                             mime="text/csv",
-                            key="download_summary_csv_button_tab2_v14", 
+                            key="download_summary_csv_button_tab2_v13", 
                             use_container_width=True
                         )
                         st.markdown("<br>", unsafe_allow_html=True)
@@ -493,9 +484,10 @@ def main():
                     else:
                         st.caption("Aucune donnée pour l'indice de Shannon.")
                     
-                    st.markdown("---") 
+                    st.markdown("---") # Séparateur avant le graphique
                     
-                    col_graph_container, col_graph_empty = st.columns([1, 2]) 
+                    # MODIFICATION: Graphique dans une colonne à gauche, plus petit
+                    col_graph_container, col_graph_empty = st.columns([1, 2]) # Graphique prend 1/3 de la largeur
 
                     with col_graph_container:
                         ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
@@ -507,34 +499,41 @@ def main():
                                                 "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
                             pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
                             
+                            # Ajustement de la taille du graphique et des polices
+                            # figsize: (largeur, hauteur) en pouces. DPI par défaut de matplotlib est souvent 100.
+                            # Une largeur de 2.5 pouces donnera environ 250 pixels.
                             fig_width = 2.5 
-                            fig_height = fig_width * 0.8 
+                            fig_height = fig_width * 0.8 # Maintenir un ratio pour la hauteur
                             
                             fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(fig_width, fig_height))
                             
                             wedges, texts, autotexts = ax_pie_final_display_v7.pie(
                                 sizes_pie_values_final_v7, 
-                                autopct='%1.0f%%', 
+                                autopct='%1.0f%%', # Format des pourcentages
                                 startangle=90, 
                                 colors=pie_colors_list_final_v7, 
-                                pctdistance=0.7,  
-                                radius=1.0        
+                                pctdistance=0.7,  # Distance des pourcentages par rapport au centre
+                                radius=1.0        # Rayon du camembert
                             )
                             
+                            # Ajuster la taille de la police des pourcentages
                             for autotext in autotexts:
-                                autotext.set_fontsize(6) 
+                                autotext.set_fontsize(6) # Police petite pour les pourcentages
 
-                            ax_pie_final_display_v7.axis('equal') 
+                            ax_pie_final_display_v7.axis('equal') # Assure que le camembert est un cercle
                             
                             legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
                             
+                            # Légende à droite du graphique, avec taille de police ajustée
                             ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='center left', 
-                                                    bbox_to_anchor=(1.05, 0.5), 
-                                                    fontsize=6, frameon=False) 
+                                                    bbox_to_anchor=(1.05, 0.5), # Positionner la légende à droite
+                                                    fontsize=6, frameon=False) # Taille de police pour la légende
                             
-                            plt.subplots_adjust(left=0.05, right=0.70, top=0.95, bottom=0.05) 
+                            # Ajuster les marges de la figure pour que la légende ne soit pas coupée
+                            # plt.tight_layout() peut parfois aider, mais ici on ajuste manuellement
+                            plt.subplots_adjust(left=0.05, right=0.70, top=0.95, bottom=0.05) # Donner de l'espace à droite pour la légende
                                                         
-                            st.pyplot(fig_pie_final_display_v7, use_container_width=False) 
+                            st.pyplot(fig_pie_final_display_v7, use_container_width=False) # Important: use_container_width=False
                         else: st.write("Aucune fonction écologique à afficher.")
             
             st.markdown("--- \n ### Identification Détaillée par Image")
