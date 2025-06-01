@@ -28,13 +28,13 @@ ECOLOGICAL_FUNCTIONS_MAP = {
 }
 DEFAULT_ECOLOGICAL_FUNCTION = "Non défini"
 
-# NOUVEAU: Dictionnaire pour les précisions
 ECOLOGICAL_PRECISIONS_MAP = {
     "Carabidae": "Quelques espèces consomment des graines d'adventices, voire de semences agricoles (très marginal, impact très faible)",
     "Isopoda": "Consommation des jeunes pousses (rare et impact très faible)",
     "Opiliones et Araneae": "Les opilions sont également des décomposeurs de la matière organique"
 }
-DEFAULT_PRECISION = "" # Vide si pas de précision
+# MODIFICATION: "NA" pour les cases sans précision
+DEFAULT_PRECISION = "NA" 
 
 DEFAULT_SEG_PARAMS = {
     "blur_kernel": 5, "adapt_block_size": 35, "adapt_c": 5, "min_area": 150,
@@ -409,10 +409,6 @@ def main():
                 
                 if not all_labels_pie_tab2_an_list_v7: st.warning("Aucun arthropode n'a pu être identifié.")
                 else:
-                    # MODIFICATION: Suppression des colonnes, le graphique sera en dessous
-                    # col_table_summary_display_v7, col_pie_chart_display_final_v7 = st.columns([2, 1])
-
-                    # with col_table_summary_display_v7: # Plus besoin de cette colonne spécifique
                     st.subheader("Résumé des Identifications")
                     raw_label_counts_display_v7 = {}
                     for lbl_disp_v7 in all_labels_pie_tab2_an_list_v7:
@@ -422,32 +418,23 @@ def main():
                     for label_name_disp_v7, count_disp_v7 in sorted(raw_label_counts_display_v7.items(), key=lambda item_disp_v7: item_disp_v7[1], reverse=True):
                         display_label_name_val_v7 = "Opiliones et Araneae" if label_name_disp_v7 == "Arachnides" else label_name_disp_v7
                         eco_func_disp_v7 = ECOLOGICAL_FUNCTIONS_MAP.get(display_label_name_val_v7, ECOLOGICAL_FUNCTIONS_MAP.get(label_name_disp_v7, DEFAULT_ECOLOGICAL_FUNCTION))
-                        # MODIFICATION: Ajout de la précision
                         precision_disp_v7 = ECOLOGICAL_PRECISIONS_MAP.get(display_label_name_val_v7, DEFAULT_PRECISION)
                         
                         summary_data_display_v7.append({
                             "Groupe Taxonomique": display_label_name_val_v7,
                             "Quantité": count_disp_v7,
                             "Fonction Écologique": eco_func_disp_v7,
-                            "Précisions": precision_disp_v7 # Nouvelle colonne
+                            "Précisions": precision_disp_v7
                         })
                     if summary_data_display_v7:
                         df_summary_display_v7 = pd.DataFrame(summary_data_display_v7)
                         
-                        # MODIFICATION: Style pour griser les cellules "Précisions" vides
-                        def style_precision_column(val):
-                            if val == DEFAULT_PRECISION: # Si c'est la valeur par défaut (vide)
-                                return 'background-color: #f0f0f0; color: #a0a0a0; font-style: italic;' # Style grisé
-                            return ''
+                        # MODIFICATION: Ne plus griser, juste afficher le DataFrame tel quel (NA sera affiché)
+                        st.dataframe(df_summary_display_v7, use_container_width=True, hide_index=True)
 
-                        # Appliquer le style
-                        styler_df = df_summary_display_v7.style.applymap(style_precision_column, subset=['Précisions'])
-                        st.dataframe(styler_df, use_container_width=True, hide_index=True)
+                        st.markdown("<br>", unsafe_allow_html=True)
 
-                        st.markdown("<br>", unsafe_allow_html=True) # Espace avant le bouton de téléchargement
-
-                        # Bouton de téléchargement (déjà présent, juste s'assurer qu'il est bien placé)
-                        @st.cache_data # Utiliser st.cache_data pour les fonctions de conversion de données
+                        @st.cache_data
                         def convert_df_to_csv_v2(df):
                             return df.to_csv(index=False).encode('utf-8')
 
@@ -457,12 +444,10 @@ def main():
                             data=csv_to_download_v2,
                             file_name="resume_identifications_arthropodes.csv",
                             mime="text/csv",
-                            key="download_summary_csv_button_tab2_v8",
+                            key="download_summary_csv_button_tab2_v9", # Nouvelle clé
                             use_container_width=True
                         )
                         st.markdown("<br>", unsafe_allow_html=True)
-
-
                     else:
                         st.write("Aucune donnée pour le tableau récapitulatif.")
 
@@ -482,8 +467,6 @@ def main():
                     else:
                         st.caption("Aucune donnée pour l'indice de Shannon.")
 
-                    # MODIFICATION: Graphique en camembert après le tableau et l'indice de Shannon
-                    # with col_pie_chart_display_final_v7: # Plus besoin de cette colonne spécifique
                     ecological_counts_for_pie_chart_final_v7 = ecological_counts_for_shannon_calc_v7 
                     if ecological_counts_for_pie_chart_final_v7:
                         st.subheader("Fonctions Écologiques")
@@ -493,15 +476,18 @@ def main():
                                             "Ennemis naturels": "#DC143C", "Ravageur": "#FF8C00", "Non défini": "#D3D3D3"}
                         pie_colors_list_final_v7 = [colors_map_pie_final_v7.get(lbl_p_final_v7, "#CCCCCC") for lbl_p_final_v7 in labels_pie_keys_final_v7]
                         
-                        fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(3.0, 2.5)) 
+                        # MODIFICATION : Taille du Pie Chart réduite
+                        fig_pie_final_display_v7, ax_pie_final_display_v7 = plt.subplots(figsize=(2.0, 1.5)) # Encore plus petit
                         ax_pie_final_display_v7.pie(sizes_pie_values_final_v7, labels=None, autopct='%1.0f%%', startangle=90, 
-                                    colors=pie_colors_list_final_v7, pctdistance=0.8, textprops={'fontsize': 6})
+                                    colors=pie_colors_list_final_v7, pctdistance=0.75, textprops={'fontsize': 5}) # Police encore plus petite
                         ax_pie_final_display_v7.axis('equal')
                         legend_handles_v7 = [plt.Rectangle((0,0),1,1, color=colors_map_pie_final_v7.get(name_v7, "#CCCCCC")) for name_v7 in labels_pie_keys_final_v7]
-                        ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='upper center', 
-                                                bbox_to_anchor=(0.5, -0.02), ncol=max(1, len(labels_pie_keys_final_v7)//2), 
+                        
+                        # Ajuster la légende pour qu'elle prenne moins de place
+                        ax_pie_final_display_v7.legend(legend_handles_v7, labels_pie_keys_final_v7, loc='center left', 
+                                                bbox_to_anchor=(1, 0.5), # Légende à droite du graphique
                                                 fontsize='xx-small', frameon=False)
-                        plt.subplots_adjust(bottom=0.2 if len(labels_pie_keys_final_v7)>2 else 0.1)
+                        plt.subplots_adjust(right=0.6) # Laisser de la place pour la légende à droite
                         st.pyplot(fig_pie_final_display_v7)
                     else: st.write("Aucune fonction écologique à afficher.")
             
