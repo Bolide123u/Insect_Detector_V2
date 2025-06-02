@@ -229,7 +229,7 @@ def sidebar_param_changed():
 
 def main():
     st.set_page_config(layout="wide")
-    st.title("Détection, isolation et identification dʼArthropodes")
+    st.title("Détection, isolation et identification dʼarthropodes")
 
     if 'image_data_list' not in st.session_state: st.session_state.image_data_list = []
     if 'model_obj' not in st.session_state: st.session_state.model_obj = None
@@ -368,8 +368,8 @@ def main():
                 with cols_img_display_item_tab1_v7[2]:
                     label_disp_main_tab1_val_v7 = create_label_display_image(img_data_main_tab1_disp_v7["processed_data"]["labels"], img_data_main_tab1_disp_v7["processed_data"]["filtered_props"])
                     num_det_main_tab1_val_v7 = len(img_data_main_tab1_disp_v7['processed_data']['filtered_props'])
-                    st.image(label_disp_main_tab1_val_v7, caption=f"Arthropodes Détectés: {num_det_main_tab1_val_v7}", use_column_width=True)
-                st.metric(label=f"Arthropodes Détectés", value=num_det_main_tab1_val_v7)
+                    st.image(label_disp_main_tab1_val_v7, caption=f"arthropodes Détectés: {num_det_main_tab1_val_v7}", use_column_width=True)
+                st.metric(label=f"arthropodes Détectés", value=num_det_main_tab1_val_v7)
             else:
                 with cols_img_display_item_tab1_v7[1]: st.caption("Attente morpho.")
                 with cols_img_display_item_tab1_v7[2]: st.caption("Attente labels.")
@@ -379,7 +379,7 @@ def main():
                 st.rerun()
 
     with tab2:
-        st.header("Analyse Globale des Arthropodes Identifiés")
+        st.header("Analyse Globale des arthropodes Identifiés")
         if model_to_use is None or class_names_to_use is None:
             st.error("Modèle d'identification ou labels non disponibles.")
         elif not st.session_state.image_data_list or not any(img_d_tab2_an["is_processed"] for img_d_tab2_an in st.session_state.image_data_list):
@@ -560,7 +560,7 @@ def main():
                         arthropod_detail_item_id_tab2_disp_final_v7["image"], model_to_use, class_names_to_use, MODEL_INPUT_SIZE
                     )
                     with cols_id_detail_disp_tab2_val_final_v7[col_idx_id_detail_disp_tab2_val_final_v7 % num_cols_id_detail_disp_tab2_val_final_v7]:
-                        st.image(cv2.cvtColor(arthropod_detail_item_id_tab2_disp_final_v7["image"], cv2.COLOR_BGR2RGB), caption=f"Arthropode #{arthropod_detail_item_id_tab2_disp_final_v7['index'] + 1}", width=150)
+                        st.image(cv2.cvtColor(arthropod_detail_item_id_tab2_disp_final_v7["image"], cv2.COLOR_BGR2RGB), caption=f"arthropode #{arthropod_detail_item_id_tab2_disp_final_v7['index'] + 1}", width=150)
                         if "Erreur" in label_detail_id_tab2_val_final_v7:
                             st.error(f"{label_detail_id_tab2_val_final_v7} ({confidence_detail_id_tab2_val_final_v7*100:.2f}%)")
                         else:
